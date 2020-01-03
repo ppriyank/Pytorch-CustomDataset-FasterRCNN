@@ -10,3 +10,7 @@ Shaoqing Ren, Kaiming He, Ross Girshick, Jian Sun
 
 
 Tutorial:  [source](https://towardsdatascience.com/faster-r-cnn-object-detection-implemented-by-keras-for-custom-data-from-googles-open-images-125f62b9141a) 
+
+
+Example of how aspect ratio works:  
+<img src="https://github.com/ppriyank/Pytorch-CustomDataset-FasterRCNN/blob/master/images/ratiologic.jpg" width="900">
