@@ -1,6 +1,7 @@
 import math 
 
 def base_size_calculator(h,w):
+	# FOR RESNET
 	# output = int((in_size - kernel_size + 2*(padding)) / stride) + 1
 	output_size_conv = int((h - 7 + 2 * 3 )/ 2 ) + 1 , int((w - 7 + 2 * 3 )/ 2 ) + 1
 	output_size_maxpool = int((output_size_conv[0] - 3 + 2 * 1 )/ 2 ) + 1 , int((output_size_conv[1] - 3 + 2 * 1 )/ 2 ) + 1
@@ -65,6 +66,19 @@ def calc_rpn(img_data, anchor_sizes, anchor_ratios,  image_resize_size =(300,400
 				# ignore boxes that go across image boundaries					
 				if x1_anc < 0 or x2_anc > resized_width:
 					continue
+
+				for jy in range(output_height):
+
+					# y-coordinates of the current anchor box
+					y1_anc = downscale * (jy + 0.5) - anchor_y / 2
+					y2_anc = downscale * (jy + 0.5) + anchor_y / 2
+
+					# ignore boxes that go across image boundaries
+					if y1_anc < 0 or y2_anc > resized_height:
+						continue
+
+
+
 				
 							
 
@@ -87,16 +101,9 @@ downscale = float(C.rpn_stride)
 				
 				
 					
-				for jy in range(output_height):
+				
 
-					# y-coordinates of the current anchor box
-					y1_anc = downscale * (jy + 0.5) - anchor_y / 2
-					y2_anc = downscale * (jy + 0.5) + anchor_y / 2
-
-					# ignore boxes that go across image boundaries
-					if y1_anc < 0 or y2_anc > resized_height:
-						continue
-
+					
 					# bbox_type indicates whether an anchor should be a target
 					# Initialize with 'negative'
 					bbox_type = 'neg'
