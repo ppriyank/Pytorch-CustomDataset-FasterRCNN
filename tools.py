@@ -36,25 +36,36 @@ def calc_rpn(img_data, anchor_sizes, anchor_ratios,  image_resize_size =(300,400
 
 	# pre-processing step 
 	# get the GT box coordinates, and resize to account for image resizing
+	# see convention figure 
 	for bbox_num, bbox in enumerate(img_data['bboxes']):
 		# get the GT box coordinates, and resize to account for image resizing
 		gta[bbox_num, 0] = bbox['xmin'] * (image_resize_size[1] / float(image_original_size[1]))
-		gta[bbox_num, 2] = bbox['ymin'] * (image_resize_size[0] / float(image_original_size[0]))
-		gta[bbox_num, 1] = bbox['xmax'] * (image_resize_size[1] / float(image_original_size[1]))
+		gta[bbox_num, 1] = bbox['ymin'] * (image_resize_size[0] / float(image_original_size[0]))
+		gta[bbox_num, 2] = bbox['xmax'] * (image_resize_size[1] / float(image_original_size[1]))
 		gta[bbox_num, 3] = bbox['ymax'] * (image_resize_size[0] / float(image_original_size[0]))
 
-	downsample = max( math.ceil(image_resize_size[0] / output_height)) , math.ceil(image_resize_size[1] / output_width))
+	# see convention figure 
+	downsample = max( 
+		math.ceil(image_resize_size[0] / output_height) , 
+		math.ceil(image_resize_size[1] / output_width)
+		)
 	# rpn ground truth
 	for anchor_size_idx in range(len(anchor_sizes)):
 		for anchor_ratio_idx in range(n_anchratios):
 			# (Equation : 1, see figure)
 			ratio_square_root = math.sqrt(anchor_ratios[anchor_ratio_idx])
 			anchor_x = anchor_sizes[anchor_size_idx] / ratio_square_root
-			anchor_y = anchor_sizes[anchor_size_idx] * ratio_square_root	
+			anchor_y = anchor_sizes[anchor_size_idx] * ratio_square_root
+
 			for ix in range(output_width):		
 				# x-coordinates of the current anchor box	
 				x1_anc = downscale * (ix + 0.5) - anchor_x / 2
 				x2_anc = downscale * (ix + 0.5) + anchor_x / 2	
+
+				# ignore boxes that go across image boundaries					
+				if x1_anc < 0 or x2_anc > resized_width:
+					continue
+				
 							
 
 			
@@ -74,9 +85,7 @@ downscale = float(C.rpn_stride)
 			
 			
 				
-				# ignore boxes that go across image boundaries					
-				if x1_anc < 0 or x2_anc > resized_width:
-					continue
+				
 					
 				for jy in range(output_height):
 
