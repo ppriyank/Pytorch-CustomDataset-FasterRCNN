@@ -14,6 +14,8 @@ import torchvision.transforms as transforms
 
 import models
 
+label_dict = {0:'car' , 1:'person' , 2:'background'}
+
 
 parser = argparse.ArgumentParser(description='Faster RCNN (Custom Dataset)')
 parser.add_argument('--train-batch', default=32, type=int,
