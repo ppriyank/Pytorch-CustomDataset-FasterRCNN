@@ -1,3 +1,5 @@
+import math 
+
 def base_size_calculator(h,w):
 	# output = int((in_size - kernel_size + 2*(padding)) / stride) + 1
 	output_size_conv = int((h - 7 + 2 * 3 )/ 2 ) + 1 , int((w - 7 + 2 * 3 )/ 2 ) + 1
@@ -16,7 +18,7 @@ def base_size_calculator(h,w):
 def calc_rpn(img_data, anchor_sizes, anchor_ratios,  image_resize_size =(300,400), image_original_size=(600,800)): 
 	num_anchors = len(anchor_sizes) * len(anchor_ratios) # 3x3=9
 	n_anchratios = len(anchor_ratios) # 3
-	(output_width, output_height) = base_size_calculator(image_resize_size[0], image_resize_size[1])
+	(output_height , output_width) = base_size_calculator(image_resize_size[0], image_resize_size[1])
 
 	y_is_box_valid = np.zeros((output_height, output_width, num_anchors))
 	y_rpn_regr = np.zeros((output_height, output_width, num_anchors * 4))
@@ -30,41 +32,47 @@ def calc_rpn(img_data, anchor_sizes, anchor_ratios,  image_resize_size =(300,400
 	best_x_for_bbox = np.zeros((num_bboxes, 4)).astype(int)
 	best_dx_for_bbox = np.zeros((num_bboxes, 4)).astype(np.float32)
 
+	gta = np.zeros((num_bboxes, 4))
+
+	# pre-processing step 
+	# get the GT box coordinates, and resize to account for image resizing
+	for bbox_num, bbox in enumerate(img_data['bboxes']):
+		# get the GT box coordinates, and resize to account for image resizing
+		gta[bbox_num, 0] = bbox['xmin'] * (image_resize_size[1] / float(image_original_size[1]))
+		gta[bbox_num, 2] = bbox['ymin'] * (image_resize_size[0] / float(image_original_size[0]))
+		gta[bbox_num, 1] = bbox['xmax'] * (image_resize_size[1] / float(image_original_size[1]))
+		gta[bbox_num, 3] = bbox['ymax'] * (image_resize_size[0] / float(image_original_size[0]))
+
+	downsample = max( math.ceil(image_resize_size[0] / output_height)) , math.ceil(image_resize_size[1] / output_width))
+	# rpn ground truth
+	for anchor_size_idx in range(len(anchor_sizes)):
+		for anchor_ratio_idx in range(n_anchratios):
+			# (Equation : 1, see figure)
+			ratio_square_root = math.sqrt(anchor_ratios[anchor_ratio_idx])
+			anchor_x = anchor_sizes[anchor_size_idx] / ratio_square_root
+			anchor_y = anchor_sizes[anchor_size_idx] * ratio_square_root	
+			for ix in range(output_width):		
+				# x-coordinates of the current anchor box	
+				x1_anc = downscale * (ix + 0.5) - anchor_x / 2
+				x2_anc = downscale * (ix + 0.5) + anchor_x / 2	
+							
+
+			
+
 
 downscale = float(C.rpn_stride) 
 	
 
-
-	    # 3
-	
-	# initialise empty output objectives
 	
 	
 	
-
 	
-
 	
-	# get the GT box coordinates, and resize to account for image resizing
-	gta = np.zeros((num_bboxes, 4))
-	for bbox_num, bbox in enumerate(img_data['bboxes']):
-		# get the GT box coordinates, and resize to account for image resizing
-		gta[bbox_num, 0] = bbox['x1'] * (resized_width / float(width))
-		gta[bbox_num, 1] = bbox['x2'] * (resized_width / float(width))
-		gta[bbox_num, 2] = bbox['y1'] * (resized_height / float(height))
-		gta[bbox_num, 3] = bbox['y2'] * (resized_height / float(height))
 	
-	# rpn ground truth
-
-	for anchor_size_idx in range(len(anchor_sizes)):
-		for anchor_ratio_idx in range(n_anchratios):
-			anchor_x = anchor_sizes[anchor_size_idx] * anchor_ratios[anchor_ratio_idx][0]
-			anchor_y = anchor_sizes[anchor_size_idx] * anchor_ratios[anchor_ratio_idx][1]	
+	
+		
 			
-			for ix in range(output_width):					
-				# x-coordinates of the current anchor box	
-				x1_anc = downscale * (ix + 0.5) - anchor_x / 2
-				x2_anc = downscale * (ix + 0.5) + anchor_x / 2	
+			
 				
 				# ignore boxes that go across image boundaries					
 				if x1_anc < 0 or x2_anc > resized_width:
