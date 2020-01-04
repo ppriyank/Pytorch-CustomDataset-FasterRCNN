@@ -31,15 +31,9 @@ class Dataset(Dataset):
         objects = self.objects[i]
         boxes = torch.FloatTensor(objects['boxes'])  # (n_objects, 4)
         labels = torch.LongTensor(objects['labels'])  # (n_objects)
-        
-        # Discard difficult objects, if desired
-        if not self.keep_difficult:
-            boxes = boxes[1 - difficulties]
-            labels = labels[1 - difficulties]
 
         # Apply transformations
         image, boxes, labels = transform(image, boxes, labels, split=self.split)
-
         return image, boxes, labels, difficulties
 
     def __len__(self):
