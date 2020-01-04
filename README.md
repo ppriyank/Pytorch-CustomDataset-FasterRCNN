@@ -22,9 +22,19 @@ Shaoqing Ren, Kaiming He, Ross Girshick, Jian Sun
 * rpn_to_roi
 * training code 
 * parallelize the code ?? : calc_rpn
+* valid boxes
+* create parsing json read/write functions
+
+
 
 
 Tutorial / Credits / Source :  [source](https://towardsdatascience.com/faster-r-cnn-object-detection-implemented-by-keras-for-custom-data-from-googles-open-images-125f62b9141a)  ||  [Github](https://github.com/RockyXu66/Faster_RCNN_for_Open_Images_Dataset_Keras)
+
+
+## Github GUIDE
+
+* Update label_dict in main.py (assign indices to your custom classes)
+
 
 ## Explanation 
 
