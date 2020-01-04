@@ -42,7 +42,7 @@ def valid_anchors(anchor_sizes,anchor_ratios , downscale , output_width , resize
 					# ignore boxes that go across image boundaries
 					if y1_anc < 0 or y2_anc > resized_height:
 						continue
-					anchor_boxes[anchor_size_idx][anchor_ratio_idx].append((x1_anc , x2_anc , y1_anc ,  y2_anc , ix , jy))
+					anchor_boxes[anchor_size_idx][anchor_ratio_idx].append((x1_anc , y1_anc , x2_anc,  y2_anc , ix , jy))
 	return anchor_boxes
 		
 
@@ -106,6 +106,9 @@ def calc_rpn(img_data, anchor_sizes, anchor_ratios, valid_anchors , image_resize
 	for key1 in valid_anchors:
 		for key2 in valid_anchors[key1]:
 			for anchor_box in valid_anchors[key1][key2]: 
+				anchor_ratio_idx = key2
+				anchor_size_idx = key1
+				
 				x1_anc , y1_anc , x2_anc , y2_anc , ix , jy = anchor_box
 				# bbox_type indicates whether an anchor should be a target
 				# Initialize with 'negative'
@@ -157,18 +160,18 @@ def calc_rpn(img_data, anchor_sizes, anchor_ratios, valid_anchors , image_resize
 								bbox_type = 'neutral'
 
 
-						# turn on or off outputs depending on IOUs
-						if bbox_type == 'neg':
-							y_is_box_valid[jy, ix, anchor_ratio_idx + n_anchratios * anchor_size_idx] = 1
-							y_rpn_overlap[jy, ix, anchor_ratio_idx + n_anchratios * anchor_size_idx] = 0
-						elif bbox_type == 'neutral':
-							y_is_box_valid[jy, ix, anchor_ratio_idx + n_anchratios * anchor_size_idx] = 0
-							y_rpn_overlap[jy, ix, anchor_ratio_idx + n_anchratios * anchor_size_idx] = 0
-						elif bbox_type == 'pos':
-							y_is_box_valid[jy, ix, anchor_ratio_idx + n_anchratios * anchor_size_idx] = 1
-							y_rpn_overlap[jy, ix, anchor_ratio_idx + n_anchratios * anchor_size_idx] = 1
-							start = 4 * (anchor_ratio_idx + n_anchratios * anchor_size_idx)
-							y_rpn_regr[jy, ix, start:start+4] = best_regr
+				# turn on or off outputs depending on IOUs
+				if bbox_type == 'neg':
+					y_is_box_valid[jy, ix, anchor_ratio_idx + n_anchratios * anchor_size_idx] = 1
+					y_rpn_overlap[jy, ix, anchor_ratio_idx + n_anchratios * anchor_size_idx] = 0
+				elif bbox_type == 'neutral':
+					y_is_box_valid[jy, ix, anchor_ratio_idx + n_anchratios * anchor_size_idx] = 0
+					y_rpn_overlap[jy, ix, anchor_ratio_idx + n_anchratios * anchor_size_idx] = 0
+				elif bbox_type == 'pos':
+					y_is_box_valid[jy, ix, anchor_ratio_idx + n_anchratios * anchor_size_idx] = 1
+					y_rpn_overlap[jy, ix, anchor_ratio_idx + n_anchratios * anchor_size_idx] = 1
+					start = 4 * (anchor_ratio_idx + n_anchratios * anchor_size_idx)
+					y_rpn_regr[jy, ix, start:start+4] = best_regr
 
 						
 
@@ -183,12 +186,7 @@ def calc_rpn(img_data, anchor_sizes, anchor_ratios, valid_anchors , image_resize
 					
 
 
-
-			if img_data['bboxes'][bbox_num]['class'] != 'bg':
-
-							
-							
-					
+	
 
 	# we ensure that every bbox has at least one positive RPN region
 
