@@ -79,9 +79,9 @@ def calc_rpn(img_data, anchor_sizes, anchor_ratios, valid_anchors , image_resize
 	n_anchratios = len(anchor_ratios) # 3
 	(output_height , output_width) = base_size_calculator(image_resize_size[0], image_resize_size[1])
 
-	y_is_box_valid = np.zeros((output_height, output_width, num_anchors))
+	y_is_box_label = np.zeros((output_height, output_width, num_anchors))
 	y_rpn_regr = np.zeros((output_height, output_width, num_anchors * 4))
-	y_rpn_overlap = np.zeros((output_height, output_width, num_anchors))
+	
 
 	num_bboxes = len(img_data['bboxes'])
 
@@ -108,7 +108,7 @@ def calc_rpn(img_data, anchor_sizes, anchor_ratios, valid_anchors , image_resize
 			for anchor_box in valid_anchors[key1][key2]: 
 				anchor_ratio_idx = key2
 				anchor_size_idx = key1
-				
+
 				x1_anc , y1_anc , x2_anc , y2_anc , ix , jy = anchor_box
 				# bbox_type indicates whether an anchor should be a target
 				# Initialize with 'negative'
@@ -162,14 +162,11 @@ def calc_rpn(img_data, anchor_sizes, anchor_ratios, valid_anchors , image_resize
 
 				# turn on or off outputs depending on IOUs
 				if bbox_type == 'neg':
-					y_is_box_valid[jy, ix, anchor_ratio_idx + n_anchratios * anchor_size_idx] = 1
-					y_rpn_overlap[jy, ix, anchor_ratio_idx + n_anchratios * anchor_size_idx] = 0
+					y_is_box_label[jy, ix, anchor_ratio_idx + n_anchratios * anchor_size_idx] = -1
 				elif bbox_type == 'neutral':
-					y_is_box_valid[jy, ix, anchor_ratio_idx + n_anchratios * anchor_size_idx] = 0
-					y_rpn_overlap[jy, ix, anchor_ratio_idx + n_anchratios * anchor_size_idx] = 0
+					y_is_box_label[jy, ix, anchor_ratio_idx + n_anchratios * anchor_size_idx] = 0
 				elif bbox_type == 'pos':
-					y_is_box_valid[jy, ix, anchor_ratio_idx + n_anchratios * anchor_size_idx] = 1
-					y_rpn_overlap[jy, ix, anchor_ratio_idx + n_anchratios * anchor_size_idx] = 1
+					y_is_box_label[jy, ix, anchor_ratio_idx + n_anchratios * anchor_size_idx] = 1
 					start = 4 * (anchor_ratio_idx + n_anchratios * anchor_size_idx)
 					y_rpn_regr[jy, ix, start:start+4] = best_regr
 
