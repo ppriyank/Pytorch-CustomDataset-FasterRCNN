@@ -108,5 +108,32 @@ transform_test = transforms.Compose([
 
 
 
+from tools import * 
+height = 300
+width = 400
+out_h , out_w = base_size_calculator (height  , width)
 
+# see convention figure 
+downscale = max( 
+        math.ceil(height / out_h) , 
+        math.ceil(width / out_w)
+        )
+
+
+
+
+anchor_ratios = [1,0.5,2]
+
+min_dim = min(height, width)
+index = math.floor(math.log(min_dim) /  math.log(2))
+anchor_sizes = [ 2 ** index , 2 ** (index-1) , 2 ** (index-2)]
+
+
+
+valid_anchors = valid_anchors(anchor_sizes,anchor_ratios , downscale , out_w , width , out_h , height)
+
+
+
+self.rpn_min_overlap = 0.3
+self.rpn_max_overlap = 0.7
 

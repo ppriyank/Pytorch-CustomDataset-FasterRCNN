@@ -46,10 +46,34 @@ def valid_anchors(anchor_sizes,anchor_ratios , downscale , output_width , resize
 		
 
 
+def iou(a, b):
+    # (xmin,ymin,xmax,ymax)
+    # invlaid boxes
+    if a[0] >= a[2] or a[1] >= a[3] or b[0] >= b[2] or b[1] >= b[3]:
+        return 0.0
+
+    #intersection 
+    x1 = max(a[0], b[0])
+    y1 = max(a[1], b[1])
+    x2 = min(a[2], b[2])
+    y2 = min(a[3], b[3])
+
+    if x2 - x1 <= 0  or y2 - y1 <=0 :
+        intersection = 0 
+    else:
+        intersection = (x2 - x1) * (y2 - y1)
+
+    area_a = (a[2] - a[0]) * (a[3] - a[1])
+    area_b = (b[2] - b[0]) * (b[3] - b[1])
+    union =  area_a + area_b - intersection
+
+    if union <= 0 : 
+        return 0.0
+    else:
+        return float(intersection) / float(union + 1e-6)
 
 
-
-def calc_rpn(img_data, anchor_sizes, anchor_ratios,  image_resize_size =(300,400), image_original_size=(600,800)): 
+def calc_rpn(img_data, anchor_sizes, anchor_ratios, valid_anchors , image_resize_size =(300,400), image_original_size=(600,800)): 
 	num_anchors = len(anchor_sizes) * len(anchor_ratios) # 3x3=9
 	n_anchratios = len(anchor_ratios) # 3
 	(output_height , output_width) = base_size_calculator(image_resize_size[0], image_resize_size[1])
@@ -78,21 +102,47 @@ def calc_rpn(img_data, anchor_sizes, anchor_ratios,  image_resize_size =(300,400
 		gta[bbox_num, 2] = bbox['xmax'] * (image_resize_size[1] / float(image_original_size[1]))
 		gta[bbox_num, 3] = bbox['ymax'] * (image_resize_size[0] / float(image_original_size[0]))
 
-	
-	
-# 	# rpn ground truth
-	
-		
-
+	for key1 in valid_anchors:
+		for key2 in valid_anchors[key1]:
+			anchor_box  = valid_anchors[key1][key2]
+			# bbox_type indicates whether an anchor should be a target
+			# Initialize with 'negative'
+			bbox_type = 'neg'
+			# this is the best IOU for the (x,y) coord and the current anchor
+			# note that this is different from the best IOU for a GT bbox
+			best_iou_for_loc = 0.0
 			
-# 					# bbox_type indicates whether an anchor should be a target
-# 					# Initialize with 'negative'
-# 					bbox_type = 'neg'
+			# get IOU of the current GT box and the current anchor box
+			for bbox_num in range(num_bboxes):
+				curr_iou = iou([gta[bbox_num, 0], gta[bbox_num, 1], gta[bbox_num, 2], gta[bbox_num, 3]], [x1_anc, y1_anc, x2_anc, y2_anc])
+			
+				# calculate the regression targets if they will be needed
+				if curr_iou > best_iou_for_bbox[bbox_num] or curr_iou > C.rpn_max_overlap:
+					cx = (gta[bbox_num, 0] + gta[bbox_num, 1]) / 2.0
+					cy = (gta[bbox_num, 2] + gta[bbox_num, 3]) / 2.0
+					cxa = (x1_anc + x2_anc)/2.0
+					cya = (y1_anc + y2_anc)/2.0
 
-# 					# this is the best IOU for the (x,y) coord and the current anchor
-# 					# note that this is different from the best IOU for a GT bbox
-# 					best_iou_for_loc = 0.0
+					# x,y are the center point of ground-truth bbox
+					# xa,ya are the center point of anchor bbox (xa=downscale * (ix + 0.5); ya=downscale * (iy+0.5))
+					# w,h are the width and height of ground-truth bbox
+					# wa,ha are the width and height of anchor bboxe
+					# tx = (x - xa) / wa
+					# ty = (y - ya) / ha
+					# tw = log(w / wa)
+					# th = log(h / ha)
+					tx = (cx - cxa) / (x2_anc - x1_anc)
+					ty = (cy - cya) / (y2_anc - y1_anc)
+					tw = np.log((gta[bbox_num, 1] - gta[bbox_num, 0]) / (x2_anc - x1_anc))
+					th = np.log((gta[bbox_num, 3] - gta[bbox_num, 2]) / (y2_anc - y1_anc))
 
+
+
+
+	
+			
+					
+					
 
 
 
@@ -103,47 +153,8 @@ def calc_rpn(img_data, anchor_sizes, anchor_ratios,  image_resize_size =(300,400
 			
 
 
-# downscale = float(C.rpn_stride) 
-	
-
-	
-	
-	
-	
-	
-	
-	
-		
-			
-			
-				
-				
 					
-				
-
-# 					for bbox_num in range(num_bboxes):
 						
-# 						# get IOU of the current GT box and the current anchor box
-# 						curr_iou = iou([gta[bbox_num, 0], gta[bbox_num, 2], gta[bbox_num, 1], gta[bbox_num, 3]], [x1_anc, y1_anc, x2_anc, y2_anc])
-# 						# calculate the regression targets if they will be needed
-# 						if curr_iou > best_iou_for_bbox[bbox_num] or curr_iou > C.rpn_max_overlap:
-# 							cx = (gta[bbox_num, 0] + gta[bbox_num, 1]) / 2.0
-# 							cy = (gta[bbox_num, 2] + gta[bbox_num, 3]) / 2.0
-# 							cxa = (x1_anc + x2_anc)/2.0
-# 							cya = (y1_anc + y2_anc)/2.0
-
-# 							# x,y are the center point of ground-truth bbox
-# 							# xa,ya are the center point of anchor bbox (xa=downscale * (ix + 0.5); ya=downscale * (iy+0.5))
-# 							# w,h are the width and height of ground-truth bbox
-# 							# wa,ha are the width and height of anchor bboxe
-# 							# tx = (x - xa) / wa
-# 							# ty = (y - ya) / ha
-# 							# tw = log(w / wa)
-# 							# th = log(h / ha)
-# 							tx = (cx - cxa) / (x2_anc - x1_anc)
-# 							ty = (cy - cya) / (y2_anc - y1_anc)
-# 							tw = np.log((gta[bbox_num, 1] - gta[bbox_num, 0]) / (x2_anc - x1_anc))
-# 							th = np.log((gta[bbox_num, 3] - gta[bbox_num, 2]) / (y2_anc - y1_anc))
 						
 # 						if img_data['bboxes'][bbox_num]['class'] != 'bg':
 
@@ -320,9 +331,145 @@ def get_data(input_path , label_dict):
 
 
 
-def clip_gradient(optimizer, grad_clip):
-    for group in optimizer.param_groups:
-        for param in group['params']:
-            if param.grad is not None:
-                param.grad.data.clamp_(-grad_clip, grad_clip)
+import torchvision.transforms.functional as FT
+
+def flip(image, boxes):
+    """
+    Flip image horizontally.
+    :param image: image, a PIL Image
+    :param boxes: bounding boxes in boundary coordinates, a tensor of dimensions (n_objects, 4)
+    :return: flipped image, updated bounding box coordinates
+    """
+    # Flip image
+    new_image = FT.hflip(image)
+
+    # Flip boxes
+    new_boxes = boxes
+    new_boxes[:, 0] = image.width - boxes[:, 0] - 1
+    new_boxes[:, 2] = image.width - boxes[:, 2] - 1
+    new_boxes = new_boxes[:, [2, 1, 0, 3]]
+
+    return new_image, new_boxes
+
+
+
+
+
+def resize(image, boxes, dims=(300, 300), return_percent_coords=True):
+    """
+    Resize image. For the SSD300, resize to (300, 300).
+    Since percent/fractional coordinates are calculated for the bounding boxes (w.r.t image dimensions) in this process,
+    you may choose to retain them.
+    :param image: image, a PIL Image
+    :param boxes: bounding boxes in boundary coordinates, a tensor of dimensions (n_objects, 4)
+    :return: resized image, updated bounding box coordinates (or fractional coordinates, in which case they remain the same)
+    """
+    # Resize image
+    new_image = FT.resize(image, dims)
+
+    # Resize bounding boxes
+    old_dims = torch.FloatTensor([image.width, image.height, image.width, image.height]).unsqueeze(0)
+    new_boxes = boxes / old_dims  # percent coordinates
+
+    if not return_percent_coords:
+        new_dims = torch.FloatTensor([dims[1], dims[0], dims[1], dims[0]]).unsqueeze(0)
+        new_boxes = new_boxes * new_dims
+
+    return new_image, new_boxes
+
+
+
+def photometric_distort(image):
+    """
+    Distort brightness, contrast, saturation, and hue, each with a 50% chance, in random order.
+    :param image: image, a PIL Image
+    :return: distorted image
+    """
+    new_image = image
+
+    distortions = [FT.adjust_brightness,
+                   FT.adjust_contrast,
+                   FT.adjust_saturation,
+                   FT.adjust_hue]
+
+    random.shuffle(distortions)
+
+    for d in distortions:
+        if random.random() < 0.5:
+            if d.__name__ is 'adjust_hue':
+                # Caffe repo uses a 'hue_delta' of 18 - we divide by 255 because PyTorch needs a normalized value
+                adjust_factor = random.uniform(-18 / 255., 18 / 255.)
+            else:
+                # Caffe repo uses 'lower' and 'upper' values of 0.5 and 1.5 for brightness, contrast, and saturation
+                adjust_factor = random.uniform(0.5, 1.5)
+
+            # Apply this distortion
+            new_image = d(new_image, adjust_factor)
+
+    return new_image
+
+
+
+
+
+
+
+
+def transform(image, boxes, labels, difficulties, split):
+    """
+    Apply the transformations above.
+    :param image: image, a PIL Image
+    :param boxes: bounding boxes in boundary coordinates, a tensor of dimensions (n_objects, 4)
+    :param labels: labels of objects, a tensor of dimensions (n_objects)
+    :param difficulties: difficulties of detection of these objects, a tensor of dimensions (n_objects)
+    :param split: one of 'TRAIN' or 'TEST', since different sets of transformations are applied
+    :return: transformed image, transformed bounding box coordinates, transformed labels, transformed difficulties
+    """
+    assert split in {'TRAIN', 'TEST'}
+
+    # Mean and standard deviation of ImageNet data that our base VGG from torchvision was trained on
+    # see: https://pytorch.org/docs/stable/torchvision/models.html
+    mean = [0.485, 0.456, 0.406]
+    std = [0.229, 0.224, 0.225]
+
+    new_image = image
+    new_boxes = boxes
+    new_labels = labels
+    new_difficulties = difficulties
+    # Skip the following operations if validation/evaluation
+    if split == 'TRAIN':
+        # A series of photometric distortions in random order, each with 50% chance of occurrence, as in Caffe repo
+        new_image = photometric_distort(new_image)
+
+        # Convert PIL image to Torch tensor
+        new_image = FT.to_tensor(new_image)
+
+        # Expand image (zoom out) with a 50% chance - helpful for training detection of small objects
+        # Fill surrounding space with the mean of ImageNet data that our base VGG was trained on
+        if random.random() < 0.5:
+            new_image, new_boxes = expand(new_image, boxes, filler=mean)
+
+        # Randomly crop image (zoom in)
+        new_image, new_boxes, new_labels, new_difficulties = random_crop(new_image, new_boxes, new_labels,
+                                                                         new_difficulties)
+
+        # Convert Torch tensor to PIL image
+        new_image = FT.to_pil_image(new_image)
+
+        # Flip image with a 50% chance
+        if random.random() < 0.5:
+            new_image, new_boxes = flip(new_image, new_boxes)
+
+    # Resize image to (300, 300) - this also converts absolute boundary coordinates to their fractional form
+    new_image, new_boxes = resize(new_image, new_boxes, dims=(300, 300))
+
+    # Convert PIL image to Torch tensor
+    new_image = FT.to_tensor(new_image)
+
+    # Normalize by mean and standard deviation of ImageNet data that our base VGG was trained on
+    new_image = FT.normalize(new_image, mean=mean, std=std)
+
+    return new_image, new_boxes, new_labels, new_difficulties
+
+
 
