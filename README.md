@@ -8,8 +8,23 @@ Shaoqing Ren, Kaiming He, Ross Girshick, Jian Sun
 ```
 
 
+### Todo : 
+* classification layer
+* Dataloader 
+* RoiPoolingConv
+* saving model and loading model
+* complete calc_rpn 
+* image transformation with respect to bounding box 
+* get_anchor_gt
+* loss functions 
+* non_max_suppression_fast
+* credits 
+* rpn_to_roi
+* training code 
+* parallelize the code ?? : calc_rpn
 
-Tutorial / Credits :  [source](https://towardsdatascience.com/faster-r-cnn-object-detection-implemented-by-keras-for-custom-data-from-googles-open-images-125f62b9141a)  ||  [Github](https://github.com/RockyXu66/Faster_RCNN_for_Open_Images_Dataset_Keras)
+
+Tutorial / Credits / Source :  [source](https://towardsdatascience.com/faster-r-cnn-object-detection-implemented-by-keras-for-custom-data-from-googles-open-images-125f62b9141a)  ||  [Github](https://github.com/RockyXu66/Faster_RCNN_for_Open_Images_Dataset_Keras)
 
 ## Explanation 
 
@@ -19,3 +34,4 @@ Example of how aspect ratio works (Equation : 1):
 
 Dimension Convention :  
 <img src="https://github.com/ppriyank/Pytorch-CustomDataset-FasterRCNN/blob/master/images/convention.jpg" width="900">
+

@@ -1,4 +1,5 @@
 import math 
+import numpy as np 
 
 def base_size_calculator(h,w):
 	# FOR RESNET
@@ -104,37 +105,43 @@ def calc_rpn(img_data, anchor_sizes, anchor_ratios, valid_anchors , image_resize
 
 	for key1 in valid_anchors:
 		for key2 in valid_anchors[key1]:
-			anchor_box  = valid_anchors[key1][key2]
-			# bbox_type indicates whether an anchor should be a target
-			# Initialize with 'negative'
-			bbox_type = 'neg'
-			# this is the best IOU for the (x,y) coord and the current anchor
-			# note that this is different from the best IOU for a GT bbox
-			best_iou_for_loc = 0.0
-			
-			# get IOU of the current GT box and the current anchor box
-			for bbox_num in range(num_bboxes):
-				curr_iou = iou([gta[bbox_num, 0], gta[bbox_num, 1], gta[bbox_num, 2], gta[bbox_num, 3]], [x1_anc, y1_anc, x2_anc, y2_anc])
-			
-				# calculate the regression targets if they will be needed
-				if curr_iou > best_iou_for_bbox[bbox_num] or curr_iou > C.rpn_max_overlap:
-					cx = (gta[bbox_num, 0] + gta[bbox_num, 1]) / 2.0
-					cy = (gta[bbox_num, 2] + gta[bbox_num, 3]) / 2.0
-					cxa = (x1_anc + x2_anc)/2.0
-					cya = (y1_anc + y2_anc)/2.0
+			for anchor_box in valid_anchors[key1][key2]: 
+				x1_anc , y1_anc , x2_anc , y2_anc = anchor_box
+				# bbox_type indicates whether an anchor should be a target
+				# Initialize with 'negative'
+				bbox_type = 'neg'
+				# this is the best IOU for the (x,y) coord and the current anchor
+				# note that this is different from the best IOU for a GT bbox
+				best_iou_for_loc = 0.0
+				
+				# get IOU of the current GT box and the current anchor box
+				for bbox_num in range(num_bboxes):
+					curr_iou = iou([gta[bbox_num, 0], gta[bbox_num, 1], gta[bbox_num, 2], gta[bbox_num, 3]], [x1_anc, y1_anc, x2_anc, y2_anc])
+					
+					# calculate the regression targets if they will be needed
+					if curr_iou > best_iou_for_bbox[bbox_num] or curr_iou > args.rpn_max_overlap:
+						golden_center_x = (gta[bbox_num, 0] + gta[bbox_num, 2]) / 2.0
+						golden_center_y = (gta[bbox_num, 1] + gta[bbox_num, 3]) / 2.0
 
-					# x,y are the center point of ground-truth bbox
-					# xa,ya are the center point of anchor bbox (xa=downscale * (ix + 0.5); ya=downscale * (iy+0.5))
-					# w,h are the width and height of ground-truth bbox
-					# wa,ha are the width and height of anchor bboxe
-					# tx = (x - xa) / wa
-					# ty = (y - ya) / ha
-					# tw = log(w / wa)
-					# th = log(h / ha)
-					tx = (cx - cxa) / (x2_anc - x1_anc)
-					ty = (cy - cya) / (y2_anc - y1_anc)
-					tw = np.log((gta[bbox_num, 1] - gta[bbox_num, 0]) / (x2_anc - x1_anc))
-					th = np.log((gta[bbox_num, 3] - gta[bbox_num, 2]) / (y2_anc - y1_anc))
+						anchor_center_x = (x1_anc + x2_anc)/2.0
+						anchor_center_y = (y1_anc + y2_anc)/2.0
+						
+						tx = (golden_center_x - anchor_center_x) / (x2_anc - x1_anc)
+						ty = (golden_center_y - anchor_center_y) / (y2_anc - y1_anc)
+						tw = np.log((gta[bbox_num, 2] - gta[bbox_num, 0]) / (x2_anc - x1_anc))
+						th = np.log((gta[bbox_num, 3] - gta[bbox_num, 1]) / (y2_anc - y1_anc))
+						
+						
+						
+						if img_data['bboxes'][bbox_num]['class'] != 'bg':
+
+							# all GT boxes should be mapped to an anchor box, so we keep track of which anchor box was best
+							if curr_iou > best_iou_for_bbox[bbox_num]:
+								best_anchor_for_bbox[bbox_num] = [jy, ix, anchor_ratio_idx, anchor_size_idx]
+								best_iou_for_bbox[bbox_num] = curr_iou
+								best_x_for_bbox[bbox_num,:] = [x1_anc, x2_anc, y1_anc, y2_anc]
+								best_dx_for_bbox[bbox_num,:] = [tx, ty, tw, th]
+
 
 
 
@@ -154,17 +161,6 @@ def calc_rpn(img_data, anchor_sizes, anchor_ratios, valid_anchors , image_resize
 
 
 					
-						
-						
-# 						if img_data['bboxes'][bbox_num]['class'] != 'bg':
-
-# 							# all GT boxes should be mapped to an anchor box, so we keep track of which anchor box was best
-# 							if curr_iou > best_iou_for_bbox[bbox_num]:
-# 								best_anchor_for_bbox[bbox_num] = [jy, ix, anchor_ratio_idx, anchor_size_idx]
-# 								best_iou_for_bbox[bbox_num] = curr_iou
-# 								best_x_for_bbox[bbox_num,:] = [x1_anc, x2_anc, y1_anc, y2_anc]
-# 								best_dx_for_bbox[bbox_num,:] = [tx, ty, tw, th]
-
 # 							# we set the anchor to positive if the IOU is >0.7 (it does not matter if there was another better box, it just indicates overlap)
 # 							if curr_iou > C.rpn_max_overlap:
 # 								bbox_type = 'pos'

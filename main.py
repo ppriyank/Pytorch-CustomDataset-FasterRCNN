@@ -34,6 +34,10 @@ parser.add_argument('--width', type=int, default=600,
 parser.add_argument('--anchor-box-scales', default=None, type=list)
 parser.add_argument('--anchor_ratio', default=[1,0.5,2], type=list)
 
+parser.add_argument('--rpn-min-overlap', default=0.3, type=float,
+                    help="min overlap")
+parser.add_argument('--rpn-max-overlap', default=0.7, type=float,
+                    help="max overlap with ground truth ")
 
 
 if args.anchor_box_scales == None : 
@@ -53,8 +57,6 @@ parser.add_argument('-j', '--workers', default=4, type=int,
                     help="number of data loading workers (default: 4)")
 parser.add_argument('--seq-len', type=int, default=4, help="number of images to sample in a tracklet")
 # Optimization options
-parser.add_argument('--max-epoch', default=800, type=int,
-                    help="maximum epochs to run")
 parser.add_argument('--start-epoch', default=0, type=int,
                     help="manual epoch number (useful on restarts)")
 parser.add_argument('--test-batch', default=1, type=int, help="has to be 1")
@@ -133,7 +135,4 @@ anchor_sizes = [ 2 ** index , 2 ** (index-1) , 2 ** (index-2)]
 valid_anchors = valid_anchors(anchor_sizes,anchor_ratios , downscale , out_w , width , out_h , height)
 
 
-
-self.rpn_min_overlap = 0.3
-self.rpn_max_overlap = 0.7
 
