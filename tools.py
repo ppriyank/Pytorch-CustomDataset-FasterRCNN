@@ -139,7 +139,7 @@ def calc_rpn(img_data, anchor_sizes, anchor_ratios, valid_anchors , image_resize
 					if label_dict[img_data['class'][bbox_num]] != 'bg':	
 						# all GT boxes should be mapped to an anchor box, so we keep track of which anchor box was best
 						if curr_iou > best_iou_for_bbox[bbox_num]:
-							best_anchor_for_bbox[bbox_num] = [jy, ix, key2, key1]
+							best_anchor_for_bbox[bbox_num] = [jy, ix, anchor_ratio_idx, anchor_size_idx]
 							best_iou_for_bbox[bbox_num] = curr_iou
 							best_x_for_bbox[bbox_num,:] = [x1_anc, y1_anc , x2_anc, y2_anc]
 							best_dx_for_bbox[bbox_num,:] = [tx, ty, tw, th]
@@ -171,22 +171,7 @@ def calc_rpn(img_data, anchor_sizes, anchor_ratios, valid_anchors , image_resize
 					y_rpn_regr[jy, ix, start:start+4] = best_regr
 
 						
-
-
-
-
-
-
-	
-			
-					
-					
-
-
-	
-
 	# we ensure that every bbox has at least one positive RPN region
-
 	for idx in range(num_anchors_for_bbox.shape[0]):
 		if num_anchors_for_bbox[idx] == 0:
 			# no box with an IOU greater than zero ...
@@ -233,6 +218,10 @@ def calc_rpn(img_data, anchor_sizes, anchor_ratios, valid_anchors , image_resize
 	y_rpn_regr = np.concatenate([np.repeat(y_rpn_overlap, 4, axis=1), y_rpn_regr], axis=1)
 
 	return np.copy(y_rpn_cls), np.copy(y_rpn_regr), num_pos
+
+
+
+
 
 
 def get_data(input_path , label_dict):
@@ -319,24 +308,24 @@ def get_data(input_path , label_dict):
 
 
 
-import torchvision.transforms.functional as FT
+# import torchvision.transforms.functional as FT
+from PIL import Image
 
 def flip(image, boxes):
     """
     Flip image horizontally.
     :param image: image, a PIL Image
-    :param boxes: bounding boxes in boundary coordinates, a tensor of dimensions (n_objects, 4)
+    :param boxes: bounding boxes in boundary coordinates, a tensor of dimensions (n_objects, xmin, ymin, xmax, ymax)
     :return: flipped image, updated bounding box coordinates
     """
     # Flip image
-    new_image = FT.hflip(image)
-
+    new_image = image.transpose(Image.FLIP_LEFT_RIGHT)
+    # new_image = FT.hflip(image)
     # Flip boxes
     new_boxes = boxes
     new_boxes[:, 0] = image.width - boxes[:, 0] - 1
     new_boxes[:, 2] = image.width - boxes[:, 2] - 1
     new_boxes = new_boxes[:, [2, 1, 0, 3]]
-
     return new_image, new_boxes
 
 

@@ -25,6 +25,7 @@ Shaoqing Ren, Kaiming He, Ross Girshick, Jian Sun
 - [ ] valid boxes
 - [ ] create parsing json read/write functions
 - [ ] loss functions 
+- [ ] How to run and what changes to make ?? 
 
 
 
@@ -61,4 +62,5 @@ For each ground truth bounding box, highest iou anchor box is kept , along with 
 
 
 
+`num_anchors_for_bbox` stores the number of positive anchor boxes associated with that golden bounding boxes.
 
