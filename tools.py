@@ -1,5 +1,10 @@
 import math 
 import numpy as np 
+import random 
+
+# Code taken from 
+# https://github.com/RockyXu66/Faster_RCNN_for_Open_Images_Dataset_Keras/blob/master/frcnn_train_vgg.ipynb
+
 
 def base_size_calculator(h,w):
 	# FOR RESNET
@@ -177,47 +182,43 @@ def calc_rpn(img_data, anchor_sizes, anchor_ratios, valid_anchors , image_resize
 			# no box with an IOU greater than zero ...
 			if best_anchor_for_bbox[idx, 0] == -1:
 				continue
-			y_is_box_valid[
-				best_anchor_for_bbox[idx,0], best_anchor_for_bbox[idx,1], best_anchor_for_bbox[idx,2] + n_anchratios *
-				best_anchor_for_bbox[idx,3]] = 1
-			y_rpn_overlap[
-				best_anchor_for_bbox[idx,0], best_anchor_for_bbox[idx,1], best_anchor_for_bbox[idx,2] + n_anchratios *
-				best_anchor_for_bbox[idx,3]] = 1
+			y_is_box_label[
+			best_anchor_for_bbox[idx,0], 
+			best_anchor_for_bbox[idx,1], 
+			best_anchor_for_bbox[idx,2] + n_anchratios * best_anchor_for_bbox[idx,3]
+			] = 1
 			start = 4 * (best_anchor_for_bbox[idx,2] + n_anchratios * best_anchor_for_bbox[idx,3])
 			y_rpn_regr[
 				best_anchor_for_bbox[idx,0], best_anchor_for_bbox[idx,1], start:start+4] = best_dx_for_bbox[idx, :]
 
-	y_rpn_overlap = np.transpose(y_rpn_overlap, (2, 0, 1))
-	y_rpn_overlap = np.expand_dims(y_rpn_overlap, axis=0)
 
-	y_is_box_valid = np.transpose(y_is_box_valid, (2, 0, 1))
-	y_is_box_valid = np.expand_dims(y_is_box_valid, axis=0)
-
-	y_rpn_regr = np.transpose(y_rpn_regr, (2, 0, 1))
-	y_rpn_regr = np.expand_dims(y_rpn_regr, axis=0)
-
-	pos_locs = np.where(np.logical_and(y_rpn_overlap[0, :, :, :] == 1, y_is_box_valid[0, :, :, :] == 1))
-	neg_locs = np.where(np.logical_and(y_rpn_overlap[0, :, :, :] == 0, y_is_box_valid[0, :, :, :] == 1))
-
+	num_regions = 500
+	pos_locs = np.where(y_is_box_label == 1 )
 	num_pos = len(pos_locs[0])
+
+	neg_locs = np.where(y_is_box_label == -1 )
+	num_neg =  len(neg_locs[0])
 
 	# one issue is that the RPN has many more negative than positive regions, so we turn off some of the negative
 	# regions. We also limit it to 256 regions.
-	num_regions = 256
-
-	if len(pos_locs[0]) > num_regions/2:
-		val_locs = random.sample(range(len(pos_locs[0])), len(pos_locs[0]) - num_regions/2)
-		y_is_box_valid[0, pos_locs[0][val_locs], pos_locs[1][val_locs], pos_locs[2][val_locs]] = 0
+	if num_pos > num_regions/2:
+		non_valid_boxes  = random.sample(range( num_pos ), num_pos - num_regions/2)
+		y_is_box_label[pos_locs[0][non_valid_boxes], pos_locs[1][non_valid_boxes], pos_locs[2][non_valid_boxes]] = 0 
 		num_pos = num_regions/2
 
-	if len(neg_locs[0]) + num_pos > num_regions:
-		val_locs = random.sample(range(len(neg_locs[0])), len(neg_locs[0]) - num_pos)
-		y_is_box_valid[0, neg_locs[0][val_locs], neg_locs[1][val_locs], neg_locs[2][val_locs]] = 0
+	if num_neg + num_pos > num_regions:
+		non_valid_boxes = random.sample(range(num_neg), num_neg - num_pos)
+		y_is_box_label[neg_locs[0][non_valid_boxes], neg_locs[1][non_valid_boxes], neg_locs[2][non_valid_boxes]] = 0 
 
-	y_rpn_cls = np.concatenate([y_is_box_valid, y_rpn_overlap], axis=1)
-	y_rpn_regr = np.concatenate([np.repeat(y_rpn_overlap, 4, axis=1), y_rpn_regr], axis=1)
+	y_is_box_label = np.transpose(y_is_box_label, (2, 0, 1))
+	y_is_box_label = np.expand_dims(y_is_box_label, axis=0)
 
-	return np.copy(y_rpn_cls), np.copy(y_rpn_regr), num_pos
+	y_rpn_regr = np.transpose(y_rpn_regr, (2, 0, 1))
+	y_rpn_regr = np.expand_dims(y_rpn_regr, axis=0)
+	
+	y_rpn_regr = np.concatenate([np.repeat(y_is_box_label, 4, axis=1), y_rpn_regr], axis=1)
+
+	return np.copy(y_is_box_label), np.copy(y_rpn_regr), num_pos
 
 
 
