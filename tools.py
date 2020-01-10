@@ -79,7 +79,7 @@ def iou(a, b):
         return float(intersection) / float(union + 1e-6)
 
 
-def calc_rpn(boxes , labels, anchor_sizes, anchor_ratios, valid_anchors , image_resize_size=(300,400)): 
+def calc_rpn(boxes , labels, anchor_sizes, anchor_ratios, valid_anchors , rpn_max_overlap=0.7  , rpn_min_overlap=0.3 , image_resize_size=(300,400)): 
 	num_anchors = len(anchor_sizes) * len(anchor_ratios) # 3x3=9
 	n_anchratios = len(anchor_ratios) # 3
 	(output_height , output_width) = base_size_calculator(image_resize_size[0], image_resize_size[1])
@@ -117,7 +117,7 @@ def calc_rpn(boxes , labels, anchor_sizes, anchor_ratios, valid_anchors , image_
 					curr_iou = iou([gta[bbox_num, 0], gta[bbox_num, 1], gta[bbox_num, 2], gta[bbox_num, 3]], [x1_anc, y1_anc, x2_anc, y2_anc])
 					
 					# calculate the regression targets if they will be needed
-					if curr_iou > best_iou_for_bbox[bbox_num]  or curr_iou > args.rpn_max_overlap : 
+					if curr_iou > best_iou_for_bbox[bbox_num]  or curr_iou > rpn_max_overlap : 
 						
 						golden_center_x = (gta[bbox_num, 0] + gta[bbox_num, 2]) / 2.0
 						golden_center_y = (gta[bbox_num, 1] + gta[bbox_num, 3]) / 2.0
@@ -140,7 +140,7 @@ def calc_rpn(boxes , labels, anchor_sizes, anchor_ratios, valid_anchors , image_
 							best_dx_for_bbox[bbox_num,:] = [tx, ty, tw, th]
 
 						# we set the anchor to positive if the IOU is >0.7 (it does not matter if there was another better box, it just indicates overlap)
-						if curr_iou > args.rpn_max_overlap:
+						if curr_iou > rpn_max_overlap:
 							bbox_type = 'pos'
 							num_anchors_for_bbox[bbox_num] += 1
 							# we update the regression layer target if this IOU is the best for the current (x,y) and anchor position
@@ -149,7 +149,7 @@ def calc_rpn(boxes , labels, anchor_sizes, anchor_ratios, valid_anchors , image_
 								best_regr = (tx, ty, tw, th)
 
 						# if the IOU is >0.3 and <0.7, it is ambiguous and no included in the objective
-						if args.rpn_min_overlap < curr_iou and curr_iou < args.rpn_max_overlap:
+						if rpn_min_overlap < curr_iou and curr_iou < rpn_max_overlap:
 							# gray zone between neg and pos
 							if bbox_type != 'pos':
 								bbox_type = 'neutral'
@@ -210,65 +210,6 @@ def calc_rpn(boxes , labels, anchor_sizes, anchor_ratios, valid_anchors , image_
 
 	return np.copy(y_is_box_label), np.copy(y_rpn_regr), num_pos
 
-
-
-
-
-def transform(image, boxes, labels, difficulties, split):
-    """
-    Apply the transformations above.
-    :param image: image, a PIL Image
-    :param boxes: bounding boxes in boundary coordinates, a tensor of dimensions (n_objects, 4)
-    :param labels: labels of objects, a tensor of dimensions (n_objects)
-    :param difficulties: difficulties of detection of these objects, a tensor of dimensions (n_objects)
-    :param split: one of 'TRAIN' or 'TEST', since different sets of transformations are applied
-    :return: transformed image, transformed bounding box coordinates, transformed labels, transformed difficulties
-    """
-    assert split in {'TRAIN', 'TEST'}
-
-    # Mean and standard deviation of ImageNet data that our base VGG from torchvision was trained on
-    # see: https://pytorch.org/docs/stable/torchvision/models.html
-    mean = [0.485, 0.456, 0.406]
-    std = [0.229, 0.224, 0.225]
-
-    new_image = image
-    new_boxes = boxes
-    new_labels = labels
-    new_difficulties = difficulties
-    # Skip the following operations if validation/evaluation
-    if split == 'TRAIN':
-        # A series of photometric distortions in random order, each with 50% chance of occurrence, as in Caffe repo
-        new_image = photometric_distort(new_image)
-
-        # Convert PIL image to Torch tensor
-        new_image = FT.to_tensor(new_image)
-
-        # Expand image (zoom out) with a 50% chance - helpful for training detection of small objects
-        # Fill surrounding space with the mean of ImageNet data that our base VGG was trained on
-        if random.random() < 0.5:
-            new_image, new_boxes = expand(new_image, boxes, filler=mean)
-
-        # Randomly crop image (zoom in)
-        new_image, new_boxes, new_labels, new_difficulties = random_crop(new_image, new_boxes, new_labels,
-                                                                         new_difficulties)
-
-        # Convert Torch tensor to PIL image
-        new_image = FT.to_pil_image(new_image)
-
-        # Flip image with a 50% chance
-        if random.random() < 0.5:
-            new_image, new_boxes = flip(new_image, new_boxes)
-
-    # Resize image to (300, 300) - this also converts absolute boundary coordinates to their fractional form
-    new_image, new_boxes = resize(new_image, new_boxes, dims=(300, 300))
-
-    # Convert PIL image to Torch tensor
-    new_image = FT.to_tensor(new_image)
-
-    # Normalize by mean and standard deviation of ImageNet data that our base VGG was trained on
-    new_image = FT.normalize(new_image, mean=mean, std=std)
-
-    return new_image, new_boxes, new_labels, new_difficulties
 
 
 

@@ -8,7 +8,7 @@ from plot import verify
 
 class Dataset(Dataset):
     
-    def __init__(self, data_folder , labels ,transform ,anchor_sizes, anchor_ratios ,  split, image_resize_size=None ,keep_difficult=False):
+    def __init__(self, data_folder , labels ,anchor_sizes, anchor_ratios ,  split, image_resize_size=None ,keep_difficult=False):
         self.split = split.upper()
         assert self.split in {'TRAIN', 'TEST'}
         self.data_folder = data_folder
@@ -27,11 +27,9 @@ class Dataset(Dataset):
         else:
             self.transform = Transform(train=False , resize_size=image_resize_size)
 
-
-
         self.anchor_sizes = anchor_sizes
         self.anchor_ratios = anchor_ratios
-        calc_rpn(boxes , labels, anchor_sizes, anchor_ratios, valid_anchors , image_resize_size=(300,400))
+        self.valid_anchors = valid_anchors
 
 
     def __getitem__(self, i, verify_image=False):
@@ -49,6 +47,9 @@ class Dataset(Dataset):
 
         # Apply transformations
         image, boxes = self.transform.apply_transform(image, boxes)
+
+        calc_rpn(boxes , labels, self.anchor_sizes, self.anchor_ratios, valid_anchors , image_resize_size=(300,400))
+
 
         boxes = torch.FloatTensor(objects['boxes'])  # (n_objects, 4)
         labels = torch.LongTensor(objects['labels'])  # (n_objects)
@@ -106,7 +107,6 @@ class Transform(object):
         self.train = train 
         self.to_tensor = transforms.ToTensor()
         self.resize_size = resize_size
-
         self.normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 
     def apply_transform(self, image, boxes  ) :
@@ -114,12 +114,12 @@ class Transform(object):
             orig_size = image.size
             # (4032, 3024)
             image = image.resize(self.resize_size)
-            boxes= [ [cord * resize_size[i % 2] / orig_size[i % 2] for i,cord in enumerate(box) ] for box in boxes]
+            boxes= [ [cord * self.resize_size[i % 2] / orig_size[i % 2] for i,cord in enumerate(box) ] for box in boxes]
 
         if self.train : 
             if random.random() < 0.5:
                 image , boxes = flip(image, boxes)
-            
+          
             if random.random() < 0.5:
                 enhancer = ImageEnhance.Sharpness(image)
                 image = enhancer.enhance(1/8)
