@@ -79,7 +79,7 @@ def iou(a, b):
         return float(intersection) / float(union + 1e-6)
 
 
-def calc_rpn(img_data, boxes , labels, anchor_sizes, anchor_ratios, valid_anchors , image_resize_size =(300,400), image_original_size=(600,800)): 
+def calc_rpn(boxes , labels, anchor_sizes, anchor_ratios, valid_anchors , image_resize_size=(300,400)): 
 	num_anchors = len(anchor_sizes) * len(anchor_ratios) # 3x3=9
 	n_anchratios = len(anchor_ratios) # 3
 	(output_height , output_width) = base_size_calculator(image_resize_size[0], image_resize_size[1])
@@ -214,134 +214,6 @@ def calc_rpn(img_data, boxes , labels, anchor_sizes, anchor_ratios, valid_anchor
 
 
 
-
-def get_data(input_path , label_dict):
-	"""Parse the data from annotation file
-	Args:
-		input_path: annotation file path
-	Returns:
-		all_data: list(filepath, width, height, list(bboxes))
-	"""
-
-
-	found_bg = False
-	all_imgs = {}
-	classes_count = {}
-	class_mapping = {}
-	visualise = True
-	i = 1	
-
-
-	with open(input_path,'r') as f:
-		for line in f:
-			# Print process
-			sys.stdout.write('\r'+'idx=' + str(i))
-			i += 1
-			line_split = line.strip().split(',')
-
-			# Make sure the info saved in annotation file matching the format (path_filename, x1, y1, x2, y2, class_name)
-			# Note:
-			#	One path_filename might has several classes (class_name)
-			#	x1, y1, x2, y2 are the pixel value of the origial image, not the ratio value
-			#	(x1, y1) top left coordinates; (x2, y2) bottom right coordinates
-			#   x1,y1-------------------
-			#	|						|
-			#	|						|
-			#	|						|
-			#	|						|
-			#	---------------------x2,y2
-
-			(filename,x1,y1,x2,y2,class_name) = line_split
-
-			if class_name not in classes_count:
-				classes_count[class_name] = 1
-			else:
-				classes_count[class_name] += 1
-
-			if class_name not in class_mapping:
-				if class_name == 'bg' and found_bg == False:
-					print('Found class name with special name bg. Will be treated as a background region (this is usually for hard negative mining).')
-					found_bg = True
-				class_mapping[class_name] = len(class_mapping)
-
-			if filename not in all_imgs:
-				all_imgs[filename] = {}
-				
-				img = cv2.imread(filename)
-				(rows,cols) = img.shape[:2]
-				all_imgs[filename]['filepath'] = filename
-				all_imgs[filename]['width'] = cols
-				all_imgs[filename]['height'] = rows
-				all_imgs[filename]['bboxes'] = []
-				# if np.random.randint(0,6) > 0:
-				# 	all_imgs[filename]['imageset'] = 'trainval'
-				# else:
-				# 	all_imgs[filename]['imageset'] = 'test'
-
-			all_imgs[filename]['bboxes'].append({'class': class_name, 'x1': int(x1), 'x2': int(x2), 'y1': int(y1), 'y2': int(y2)})
-
-
-		all_data = []
-		for key in all_imgs:
-			all_data.append(all_imgs[key])
-		
-		# make sure the bg class is last in the list
-		if found_bg:
-			if class_mapping['bg'] != len(class_mapping) - 1:
-				key_to_switch = [key for key in class_mapping.keys() if class_mapping[key] == len(class_mapping)-1][0]
-				val_to_switch = class_mapping['bg']
-				class_mapping['bg'] = len(class_mapping) - 1
-				class_mapping[key_to_switch] = val_to_switch
-		
-		return all_data, classes_count, class_mapping
-
-
-
-
-
-# import torchvision.transforms.functional as FT
-
-
-
-
-
-
-def photometric_distort(image):
-    """
-    Distort brightness, contrast, saturation, and hue, each with a 50% chance, in random order.
-    :param image: image, a PIL Image
-    :return: distorted image
-    """
-    new_image = image
-
-    distortions = [FT.adjust_brightness,
-                   FT.adjust_contrast,
-                   FT.adjust_saturation,
-                   FT.adjust_hue]
-
-    random.shuffle(distortions)
-
-    for d in distortions:
-        if random.random() < 0.5:
-            if d.__name__ is 'adjust_hue':
-                # Caffe repo uses a 'hue_delta' of 18 - we divide by 255 because PyTorch needs a normalized value
-                adjust_factor = random.uniform(-18 / 255., 18 / 255.)
-            else:
-                # Caffe repo uses 'lower' and 'upper' values of 0.5 and 1.5 for brightness, contrast, and saturation
-                adjust_factor = random.uniform(0.5, 1.5)
-
-            # Apply this distortion
-            new_image = d(new_image, adjust_factor)
-
-    return new_image
-
-
-
-
-
-
-
-
 def transform(image, boxes, labels, difficulties, split):
     """
     Apply the transformations above.
@@ -400,50 +272,5 @@ def transform(image, boxes, labels, difficulties, split):
 
 
 
-from PIL import Image , ImageEnhance
-
-
-def flip(image, boxes):
-    # Flip image
-    new_image = image.transpose(Image.FLIP_LEFT_RIGHT)
-    # new_image = FT.hflip(image)
-    # Flip boxes
-    boxes = [ [image.width - cord -1 if i % 2 ==0 else cord for i,cord in enumerate(box)  ] for box in boxes]
-    boxes = [ [box[2] ,box[1] , box[0], box[3]] for box in boxes]
-    return new_image, boxes
-
-
-
-
-
-class Transform(object):
- 	"""docstring for Transform"""
- 	def __init__(self,  train):
- 		super(Transform, self).__init__()
- 		self.train = train 
- 		
- 	def apply_transform(self, image, boxes, labels resize_size = None ) :
- 		if resize_size:
- 			orig_size = image.size
- 			# (4032, 3024)
- 			image = image.resize(resize_size)
- 			boxes= [ [cord * resize_size[i % 2] / orig_size[i % 2] for i,cord in enumerate(box) ] for box in boxes]
-
- 		if self.train : 
- 			if random.random() < 0.5:
- 				image , boxes = flip(image, boxes)
- 			
- 			if random.random() < 0.5:
- 				enhancer = ImageEnhance.Sharpness(image)
- 				image = enhancer.enhance(1/8)
- 			
- 			if random.random() < 0.5:
- 				factor  = random.random() 
- 				if factor > 0.5: 
-	 				enhancer = ImageEnhance.Brightness(image)
-	 				image = enhancer.enhance(factor)
-
- 				
- 				
 
  		

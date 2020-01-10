@@ -2,12 +2,13 @@ import torch
 from torch.utils.data import Dataset
 import json
 import os
-from PIL import Image
-
+from PIL import Image , ImageEnhance
+import torchvision.transforms as transforms
+from plot import verify
 
 class Dataset(Dataset):
     
-    def __init__(self, data_folder , labels ,transform , split, keep_difficult=False):
+    def __init__(self, data_folder , labels ,transform ,anchor_sizes, anchor_ratios ,  split, image_resize_size=None ,keep_difficult=False):
         self.split = split.upper()
         assert self.split in {'TRAIN', 'TEST'}
         self.data_folder = data_folder
@@ -19,10 +20,21 @@ class Dataset(Dataset):
             self.objects = json.load(j)
 
         assert len(self.images) == len(self.objects)
-        self.labels = labels 
-        self.transform = transform
+        self.labels = labels
 
-    def __getitem__(self, i, verify=False):
+        if self.split == 'TRAIN':
+            self.transform = Transform(train=True , resize_size=image_resize_size)
+        else:
+            self.transform = Transform(train=False , resize_size=image_resize_size)
+
+
+
+        self.anchor_sizes = anchor_sizes
+        self.anchor_ratios = anchor_ratios
+        calc_rpn(boxes , labels, anchor_sizes, anchor_ratios, valid_anchors , image_resize_size=(300,400))
+
+
+    def __getitem__(self, i, verify_image=False):
         # Read image
         image = Image.open(self.images[i], mode='r')
         image = image.convert('RGB')
@@ -32,12 +44,11 @@ class Dataset(Dataset):
         boxes = objects['boxes']
         labels = objects['labels']
 
-        if verify:
-            from plot import verify
+        if verify_image:
             verify(image, boxes, labels)
 
         # Apply transformations
-        image, boxes, labels = transform(image, boxes, labels, split=self.split)
+        image, boxes = self.transform.apply_transform(image, boxes)
 
         boxes = torch.FloatTensor(objects['boxes'])  # (n_objects, 4)
         labels = torch.LongTensor(objects['labels'])  # (n_objects)
@@ -76,4 +87,61 @@ class Dataset(Dataset):
 
 
 
-        # dataformat : ith index ==> img_data == dict, keys : 'bboxes' , 'image' , 'class', len(dict[bboxes] == len(dict[bboxes])
+# dataformat : ith index ==> img_data == dict, keys : 'bboxes' , 'image' , 'class', len(dict[bboxes] == len(dict[bboxes])
+def flip(image, boxes):
+    # Flip image
+    new_image = image.transpose(Image.FLIP_LEFT_RIGHT)
+    # new_image = FT.hflip(image)
+    # Flip boxes
+    boxes = [ [image.width - cord -1 if i % 2 ==0 else cord for i,cord in enumerate(box)  ] for box in boxes]
+    boxes = [ [box[2] ,box[1] , box[0], box[3]] for box in boxes]
+    return new_image, boxes
+
+
+
+class Transform(object):
+    """docstring for Transform"""
+    def __init__(self,  train , resize_size=None):
+        super(Transform, self).__init__()
+        self.train = train 
+        self.to_tensor = transforms.ToTensor()
+        self.resize_size = resize_size
+
+        self.normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+
+    def apply_transform(self, image, boxes  ) :
+        if self.resize_size:
+            orig_size = image.size
+            # (4032, 3024)
+            image = image.resize(self.resize_size)
+            boxes= [ [cord * resize_size[i % 2] / orig_size[i % 2] for i,cord in enumerate(box) ] for box in boxes]
+
+        if self.train : 
+            if random.random() < 0.5:
+                image , boxes = flip(image, boxes)
+            
+            if random.random() < 0.5:
+                enhancer = ImageEnhance.Sharpness(image)
+                image = enhancer.enhance(1/8)
+            
+            if random.random() < 0.5:
+                factor  = random.random() 
+                if factor > 0.5: 
+                    enhancer = ImageEnhance.Brightness(image)
+                    image = enhancer.enhance(factor)
+
+            if random.random() < 0.5:
+                factor  = random.random() 
+                if factor > 0.5: 
+                    enhancer = ImageEnhance.Contrast(image)
+                    image = enhancer.enhance(factor)
+
+            if random.random() < 0.5:
+                factor  = random.random() 
+                if factor > 0.5: 
+                    enhancer = ImageEnhance.Color(image)
+                    image = enhancer.enhance(factor)
+                
+        image = self.normalize(self.to_tensor(image)) , 
+        return image , boxes 
+        

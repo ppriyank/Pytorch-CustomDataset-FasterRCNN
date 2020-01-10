@@ -10,7 +10,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 from torch.autograd import Variable
-import torchvision.transforms as transforms
+
 
 import models
 
@@ -92,21 +92,6 @@ parser.add_argument('--gpu-devices', default='0,1,2', type=str, help='gpu device
 parser.add_argument('-f', '--focus', type=str, default='map', help="map,rerank_map")
 
 args = parser.parse_args()
-
-
-
-
-transform_train = transforms.Compose([
-            transforms.Resize((args.height, args.width), interpolation=3),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
-        ])
-
-transform_test = transforms.Compose([
-    transforms.Resize((args.height, args.width), interpolation=3),
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-])
 
 
 
