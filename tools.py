@@ -451,3 +451,19 @@ def transform(image, boxes, labels, difficulties, split):
 
 
 
+
+
+
+
+
+class Transform(object):
+ 	"""docstring for Transform"""
+ 	def __init__(self, arg):
+ 		super(Transform, self).__init__()
+ 		self.arg = arg
+
+
+ 	def apply_transform(self, resize = None ) :
+ 		if 
+
+ 		

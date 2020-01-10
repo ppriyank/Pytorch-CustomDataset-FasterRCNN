@@ -22,18 +22,26 @@ class Dataset(Dataset):
         self.labels = labels 
         self.transform = transform
 
-    def __getitem__(self, i):
+    def __getitem__(self, i, verify=False):
         # Read image
         image = Image.open(self.images[i], mode='r')
         image = image.convert('RGB')
 
         # Read objects in this image (bounding boxes, labels, difficulties)
         objects = self.objects[i]
-        boxes = torch.FloatTensor(objects['boxes'])  # (n_objects, 4)
-        labels = torch.LongTensor(objects['labels'])  # (n_objects)
+        boxes = objects['boxes']
+        labels = objects['labels']
+
+        if verify:
+            from plot import verify
+            verify(image, boxes, labels)
 
         # Apply transformations
         image, boxes, labels = transform(image, boxes, labels, split=self.split)
+
+        boxes = torch.FloatTensor(objects['boxes'])  # (n_objects, 4)
+        labels = torch.LongTensor(objects['labels'])  # (n_objects)
+
         return image, boxes, labels, difficulties
 
     def __len__(self):
