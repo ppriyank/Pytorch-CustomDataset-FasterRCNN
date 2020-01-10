@@ -2,16 +2,6 @@
 from PIL import Image, ImageDraw, ImageFont
   
 
-def verify(image, boxes, labels):
-	draw = ImageDraw.Draw(image)
-	font = ImageFont.truetype("arial.ttf", 15)
-	
-	image.show()
-
-
-
-
-
 voc_labels = ('laptop', 'person', 'lights', 'drinks' , 'projector')
 label_map = {k: v for v, k in enumerate(voc_labels)}
 label_map['bg'] = len(label_map)
@@ -21,7 +11,29 @@ rev_label_map = {v: k for k, v in label_map.items()}  # Inverse mapping
 distinct_colors = ['#e6194b', '#3cb44b', '#ffe119', '#0082c8', '#f58231', '#911eb4', '#46f0f0', '#f032e6',
                    '#d2f53c', '#fabebe', '#008080', '#000080', '#aa6e28', '#fffac8', '#800000', '#aaffc3', '#808000',
                    '#ffd8b1', '#e6beff', '#808080', '#FFFFFF']
-label_color_map = {k: distinct_colors[i] for i, k in enumerate(label_map.keys())}
+label_color_map = {k: distinct_colors[i] for i, k in enumerate(rev_label_map.keys())}
+
+
+def verify(image, boxes, labels):
+	draw = ImageDraw.Draw(image)
+	font = ImageFont.truetype("arial.ttf", 15)
+	for i in range( len(boxes) ):
+	    # Boxes
+	    box_location = boxes[i]
+	    draw.rectangle(xy=box_location, outline=label_color_map[labels[i]])
+	    draw.rectangle(xy=[l + 1. for l in box_location], outline=label_color_map[labels[i]])  # a second rectangle at an offset of 1 pixel to increase line thickness
+	    # Text
+	    text_size = font.getsize(rev_label_map[labels[i]].upper())
+	    text_location = [box_location[0] + 2., box_location[1] - text_size[1]]
+	    textbox_location = [box_location[0], box_location[1] - text_size[1], box_location[0] + text_size[0] + 4.,
+	                        box_location[1]]
+	    draw.rectangle(xy=textbox_location, fill=label_color_map[labels[i]])
+	    draw.text(xy=text_location, text=rev_label_map[labels[i]].upper(), fill='white',font=font)
+	image.show()
+
+
+
+
 
 
 

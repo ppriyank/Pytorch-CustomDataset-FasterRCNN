@@ -79,7 +79,7 @@ def iou(a, b):
         return float(intersection) / float(union + 1e-6)
 
 
-def calc_rpn(img_data, anchor_sizes, anchor_ratios, valid_anchors , image_resize_size =(300,400), image_original_size=(600,800)): 
+def calc_rpn(img_data, boxes , labels, anchor_sizes, anchor_ratios, valid_anchors , image_resize_size =(300,400), image_original_size=(600,800)): 
 	num_anchors = len(anchor_sizes) * len(anchor_ratios) # 3x3=9
 	n_anchratios = len(anchor_ratios) # 3
 	(output_height , output_width) = base_size_calculator(image_resize_size[0], image_resize_size[1])
@@ -88,7 +88,7 @@ def calc_rpn(img_data, anchor_sizes, anchor_ratios, valid_anchors , image_resize
 	y_rpn_regr = np.zeros((output_height, output_width, num_anchors * 4))
 	
 
-	num_bboxes = len(img_data['bboxes'])
+	num_bboxes = len(boxes)
 
 	num_anchors_for_bbox = np.zeros(num_bboxes).astype(int)
 	best_anchor_for_bbox = -1*np.ones((num_bboxes, 4)).astype(int)
@@ -96,17 +96,7 @@ def calc_rpn(img_data, anchor_sizes, anchor_ratios, valid_anchors , image_resize
 	best_x_for_bbox = np.zeros((num_bboxes, 4)).astype(int)
 	best_dx_for_bbox = np.zeros((num_bboxes, 4)).astype(np.float32)
 
-	gta = np.zeros((num_bboxes, 4))
-
-	# pre-processing step 
-	# get the GT box coordinates, and resize to account for image resizing
-	# see convention figure 
-	for bbox_num, bbox in enumerate(img_data['bboxes']):
-		# get the GT box coordinates, and resize to account for image resizing
-		gta[bbox_num, 0] = bbox['xmin'] * (image_resize_size[1] / float(image_original_size[1]))
-		gta[bbox_num, 1] = bbox['ymin'] * (image_resize_size[0] / float(image_original_size[0]))
-		gta[bbox_num, 2] = bbox['xmax'] * (image_resize_size[1] / float(image_original_size[1]))
-		gta[bbox_num, 3] = bbox['ymax'] * (image_resize_size[0] / float(image_original_size[0]))
+	gta = np.array((boxes))
 
 	for key1 in valid_anchors:
 		for key2 in valid_anchors[key1]:
@@ -140,8 +130,8 @@ def calc_rpn(img_data, anchor_sizes, anchor_ratios, valid_anchors , image_resize
 						tw = np.log((gta[bbox_num, 2] - gta[bbox_num, 0]) / (x2_anc - x1_anc))
 						th = np.log((gta[bbox_num, 3] - gta[bbox_num, 1]) / (y2_anc - y1_anc))
 
-						
-					if label_dict[img_data['class'][bbox_num]] != 'bg':	
+					
+					if rev_label_map[labels[bbox_num]] != 'bg':	
 						# all GT boxes should be mapped to an anchor box, so we keep track of which anchor box was best
 						if curr_iou > best_iou_for_bbox[bbox_num]:
 							best_anchor_for_bbox[bbox_num] = [jy, ix, anchor_ratio_idx, anchor_size_idx]
@@ -310,50 +300,9 @@ def get_data(input_path , label_dict):
 
 
 # import torchvision.transforms.functional as FT
-from PIL import Image
-
-def flip(image, boxes):
-    """
-    Flip image horizontally.
-    :param image: image, a PIL Image
-    :param boxes: bounding boxes in boundary coordinates, a tensor of dimensions (n_objects, xmin, ymin, xmax, ymax)
-    :return: flipped image, updated bounding box coordinates
-    """
-    # Flip image
-    new_image = image.transpose(Image.FLIP_LEFT_RIGHT)
-    # new_image = FT.hflip(image)
-    # Flip boxes
-    new_boxes = boxes
-    new_boxes[:, 0] = image.width - boxes[:, 0] - 1
-    new_boxes[:, 2] = image.width - boxes[:, 2] - 1
-    new_boxes = new_boxes[:, [2, 1, 0, 3]]
-    return new_image, new_boxes
 
 
 
-
-
-def resize(image, boxes, dims=(300, 300), return_percent_coords=True):
-    """
-    Resize image. For the SSD300, resize to (300, 300).
-    Since percent/fractional coordinates are calculated for the bounding boxes (w.r.t image dimensions) in this process,
-    you may choose to retain them.
-    :param image: image, a PIL Image
-    :param boxes: bounding boxes in boundary coordinates, a tensor of dimensions (n_objects, 4)
-    :return: resized image, updated bounding box coordinates (or fractional coordinates, in which case they remain the same)
-    """
-    # Resize image
-    new_image = FT.resize(image, dims)
-
-    # Resize bounding boxes
-    old_dims = torch.FloatTensor([image.width, image.height, image.width, image.height]).unsqueeze(0)
-    new_boxes = boxes / old_dims  # percent coordinates
-
-    if not return_percent_coords:
-        new_dims = torch.FloatTensor([dims[1], dims[0], dims[1], dims[0]]).unsqueeze(0)
-        new_boxes = new_boxes * new_dims
-
-    return new_image, new_boxes
 
 
 
@@ -451,6 +400,17 @@ def transform(image, boxes, labels, difficulties, split):
 
 
 
+from PIL import Image , ImageEnhance
+
+
+def flip(image, boxes):
+    # Flip image
+    new_image = image.transpose(Image.FLIP_LEFT_RIGHT)
+    # new_image = FT.hflip(image)
+    # Flip boxes
+    boxes = [ [image.width - cord -1 if i % 2 ==0 else cord for i,cord in enumerate(box)  ] for box in boxes]
+    boxes = [ [box[2] ,box[1] , box[0], box[3]] for box in boxes]
+    return new_image, boxes
 
 
 
@@ -458,12 +418,32 @@ def transform(image, boxes, labels, difficulties, split):
 
 class Transform(object):
  	"""docstring for Transform"""
- 	def __init__(self, arg):
+ 	def __init__(self,  train):
  		super(Transform, self).__init__()
- 		self.arg = arg
+ 		self.train = train 
+ 		
+ 	def apply_transform(self, image, boxes, labels resize_size = None ) :
+ 		if resize_size:
+ 			orig_size = image.size
+ 			# (4032, 3024)
+ 			image = image.resize(resize_size)
+ 			boxes= [ [cord * resize_size[i % 2] / orig_size[i % 2] for i,cord in enumerate(box) ] for box in boxes]
 
+ 		if self.train : 
+ 			if random.random() < 0.5:
+ 				image , boxes = flip(image, boxes)
+ 			
+ 			if random.random() < 0.5:
+ 				enhancer = ImageEnhance.Sharpness(image)
+ 				image = enhancer.enhance(1/8)
+ 			
+ 			if random.random() < 0.5:
+ 				factor  = random.random() 
+ 				if factor > 0.5: 
+	 				enhancer = ImageEnhance.Brightness(image)
+	 				image = enhancer.enhance(factor)
 
- 	def apply_transform(self, resize = None ) :
- 		if 
+ 				
+ 				
 
  		
