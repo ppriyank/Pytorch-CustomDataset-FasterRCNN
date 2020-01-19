@@ -48,7 +48,7 @@ c = config()
 verify(image, boxes, labels,c)
 
 from dataset import Transform
-transform = Transform(train=False , resize_size=(height ,width))
+transform = Transform(train=True , resize_size=(height ,width))
 
 # Apply transformations
 image, boxes = transform.apply_transform(image, boxes)

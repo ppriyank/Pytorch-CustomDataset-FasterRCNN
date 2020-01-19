@@ -6,6 +6,8 @@ from PIL import Image , ImageEnhance
 import torchvision.transforms as transforms
 from plot import verify
 
+import random 
+
 class Dataset(Dataset):
     
     def __init__(self, data_folder , labels ,anchor_sizes, anchor_ratios ,  split, image_resize_size=None ,keep_difficult=False):
@@ -112,14 +114,15 @@ class Transform(object):
         super(Transform, self).__init__()
         self.train = train 
         self.to_tensor = transforms.ToTensor()
-        self.resize_size = resize_size
+        self.resize_size = (resize_size[1] , resize_size[0])
         self.normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 
     def apply_transform(self, image, boxes  ) :
         if self.resize_size:
             orig_size = image.size
             # (4032, 3024) :: w x h 
-            image = image.resize( (self.resize_size[1] , self.resize_size[0]) )
+
+            image = image.resize( self.resize_size )
             # self.resize_size :: h x w 
             boxes= [ [cord * self.resize_size[i % 2] / orig_size[i % 2] for i,cord in enumerate(box) ] for box in boxes]
 
