@@ -69,7 +69,8 @@ min_dim = min(height, width)
 index = math.floor(math.log(min_dim) /  math.log(2))
 anchor_sizes = [ 2 ** index , 2 ** (index-1) , 2 ** (index-2)]
 
-valid_anchors = valid_anchors(anchor_sizes,anchor_ratios , downscale , out_w , width , out_h , height)
+
+valid_anchors = valid_anchors(anchor_sizes,anchor_ratios , downscale , output_width=out_w , resized_width=width , output_height=out_h , resized_height=height)
 
 
 
