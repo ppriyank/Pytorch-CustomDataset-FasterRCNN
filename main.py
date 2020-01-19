@@ -96,8 +96,12 @@ args = parser.parse_args()
 
 
 from tools import * 
-height = 300
-width = 400
+# height = 300
+# width = 400
+height = 4032
+width = 3024
+
+
 out_h , out_w = base_size_calculator (height  , width)
 
 # see convention figure 
@@ -119,15 +123,23 @@ anchor_sizes = [ 2 ** index , 2 ** (index-1) , 2 ** (index-2)]
 
 valid_anchors = valid_anchors(anchor_sizes,anchor_ratios , downscale , out_w , width , out_h , height)
 
-voc_labels = ('laptop', 'person', 'lights', 'drinks' , 'projector')
-label_map = {k: v for v, k in enumerate(voc_labels)}
-label_map['bg'] = len(label_map)
-rev_label_map = {v: k for k, v in label_map.items()}  # Inverse mapping
 
-# Color map for bounding boxes of detected objects from https://sashat.me/2017/01/11/list-of-20-simple-distinct-colors/
-distinct_colors = ['#e6194b', '#3cb44b', '#ffe119', '#0082c8', '#f58231', '#911eb4', '#46f0f0', '#f032e6',
+
+class config(object):
+    """docstring for config"""
+    def __init__(self):
+        super(config, self).__init__()
+        self.voc_labels = ('laptop', 'person', 'lights', 'drinks' , 'projector')
+        self.label_map = {k: v for v, k in enumerate(self.voc_labels)}
+        self.label_map['bg'] = len(self.label_map)
+        self.rev_label_map = {v: k for k, v in self.label_map.items()}  # Inverse mapping
+        # Color map for bounding boxes of detected objects from https://sashat.me/2017/01/11/list-of-20-simple-distinct-colors/
+        self.distinct_colors = ['#e6194b', '#3cb44b', '#ffe119', '#0082c8', '#f58231', '#911eb4', '#46f0f0', '#f032e6',
                    '#d2f53c', '#fabebe', '#008080', '#000080', '#aa6e28', '#fffac8', '#800000', '#aaffc3', '#808000',
                    '#ffd8b1', '#e6beff', '#808080', '#FFFFFF']
 
+        
 
 
+c = config()
+rpm = RPM(anchor_sizes , anchor_ratios, valid_anchors, c.rev_label_map)

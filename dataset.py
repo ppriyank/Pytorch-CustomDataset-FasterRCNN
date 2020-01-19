@@ -30,7 +30,7 @@ class Dataset(Dataset):
         self.anchor_sizes = anchor_sizes
         self.anchor_ratios = anchor_ratios
         self.valid_anchors = valid_anchors
-
+        self.image_resize_size = image_resize_size
 
     def __getitem__(self, i, verify_image=False):
         # Read image
@@ -48,11 +48,17 @@ class Dataset(Dataset):
         # Apply transformations
         image, boxes = self.transform.apply_transform(image, boxes)
 
-        calc_rpn(boxes , labels, self.anchor_sizes, self.anchor_ratios, valid_anchors , image_resize_size=(300,400))
+        if self.image_resize_size: 
+            calc_rpn(boxes , labels,  image_resize_size=image_resize_size)
+        else:
+            calc_rpn(boxes , labels,  image_resize_size=image_resize_size)
 
 
         boxes = torch.FloatTensor(objects['boxes'])  # (n_objects, 4)
         labels = torch.LongTensor(objects['labels'])  # (n_objects)
+
+        
+        image = self.transform.normalize( self.transform.to_tensor(image) )
 
         return image, boxes, labels, difficulties
 
@@ -112,8 +118,9 @@ class Transform(object):
     def apply_transform(self, image, boxes  ) :
         if self.resize_size:
             orig_size = image.size
-            # (4032, 3024)
-            image = image.resize(self.resize_size)
+            # (4032, 3024) :: w x h 
+            image = image.resize( (self.resize_size[1] , self.resize_size[0]) )
+            # self.resize_size :: h x w 
             boxes= [ [cord * self.resize_size[i % 2] / orig_size[i % 2] for i,cord in enumerate(box) ] for box in boxes]
 
         if self.train : 
@@ -142,6 +149,5 @@ class Transform(object):
                     enhancer = ImageEnhance.Color(image)
                     image = enhancer.enhance(factor)
                 
-        image = self.normalize(self.to_tensor(image)) , 
         return image , boxes 
         

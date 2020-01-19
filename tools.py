@@ -79,139 +79,146 @@ def iou(a, b):
         return float(intersection) / float(union + 1e-6)
 
 
-def calc_rpn(boxes , labels, anchor_sizes, anchor_ratios, valid_anchors , rpn_max_overlap=0.7  , rpn_min_overlap=0.3 , image_resize_size=(300,400)): 
-	num_anchors = len(anchor_sizes) * len(anchor_ratios) # 3x3=9
-	n_anchratios = len(anchor_ratios) # 3
-	(output_height , output_width) = base_size_calculator(image_resize_size[0], image_resize_size[1])
 
-	y_is_box_label = np.zeros((output_height, output_width, num_anchors))
-	y_rpn_regr = np.zeros((output_height, output_width, num_anchors * 4))
+class RPM():
+	def __init__(self, anchor_sizes , anchor_ratios, valid_anchors, rev_label_map, rpn_max_overlap=0.7 , rpn_min_overlap=0.3 ):
+		super(RPM, self).__init__()
+		self.anchor_sizes = anchor_sizes
+		self.anchor_ratios = anchor_ratios
+		self.valid_anchors = valid_anchors
+		self.rpn_max_overlap = rpn_max_overlap
+		self.rpn_min_overlap = rpn_min_overlap
+		self.rev_label_map = rev_label_map
+		
 	
+	def calc_rpn(self, boxes , labels , image_resize_size=(300,400) ): 
+		num_anchors = len(self.anchor_sizes) * len(self.anchor_ratios) # 3x3=9
+		n_anchratios = len(self.anchor_ratios) # 3
+		(output_height , output_width) = base_size_calculator(image_resize_size[0], image_resize_size[1])
 
-	num_bboxes = len(boxes)
+		y_is_box_label = np.zeros((output_height, output_width, num_anchors))
+		y_rpn_regr = np.zeros((output_height, output_width, num_anchors * 4))
+		
+		num_bboxes = len(boxes)
 
-	num_anchors_for_bbox = np.zeros(num_bboxes).astype(int)
-	best_anchor_for_bbox = -1*np.ones((num_bboxes, 4)).astype(int)
-	best_iou_for_bbox = np.zeros(num_bboxes).astype(np.float32)
-	best_x_for_bbox = np.zeros((num_bboxes, 4)).astype(int)
-	best_dx_for_bbox = np.zeros((num_bboxes, 4)).astype(np.float32)
+		num_anchors_for_bbox = np.zeros(num_bboxes).astype(int)
+		best_anchor_for_bbox = -1*np.ones((num_bboxes, 4)).astype(int)
+		best_iou_for_bbox = np.zeros(num_bboxes).astype(np.float32)
+		best_x_for_bbox = np.zeros((num_bboxes, 4)).astype(int)
+		best_dx_for_bbox = np.zeros((num_bboxes, 4)).astype(np.float32)
 
-	gta = np.array((boxes))
+		gta = np.array((boxes))
+		
+		for key1 in self.valid_anchors:
+			for key2 in self.valid_anchors[key1]:
+				for anchor_box in self.valid_anchors[key1][key2]: 
+					anchor_ratio_idx = key2
+					anchor_size_idx = key1
 
-	for key1 in valid_anchors:
-		for key2 in valid_anchors[key1]:
-			for anchor_box in valid_anchors[key1][key2]: 
-				anchor_ratio_idx = key2
-				anchor_size_idx = key1
-
-				x1_anc , y1_anc , x2_anc , y2_anc , ix , jy = anchor_box
-				# bbox_type indicates whether an anchor should be a target
-				# Initialize with 'negative'
-				bbox_type = 'neg'
-				# this is the best IOU for the (x,y) coord and the current anchor
-				# note that this is different from the best IOU for a GT bbox
-				best_iou_for_loc = 0.0
-				
-				# get IOU of the current GT box and the current anchor box
-				for bbox_num in range(num_bboxes):
-					curr_iou = iou([gta[bbox_num, 0], gta[bbox_num, 1], gta[bbox_num, 2], gta[bbox_num, 3]], [x1_anc, y1_anc, x2_anc, y2_anc])
-					
-					# calculate the regression targets if they will be needed
-					if curr_iou > best_iou_for_bbox[bbox_num]  or curr_iou > rpn_max_overlap : 
+					x1_anc , y1_anc , x2_anc , y2_anc , ix , jy = anchor_box
+					# bbox_type indicates whether an anchor should be a target
+					# Initialize with 'negative'
+					bbox_type = 'neg'
+					# this is the best IOU for the (x,y) coord and the current anchor
+					# note that this is different from the best IOU for a GT bbox
+					best_iou_for_loc = 0.0
+					# get IOU of the current GT box and the current anchor box
+					for bbox_num in range(num_bboxes):
+						curr_iou = iou([gta[bbox_num, 0], gta[bbox_num, 1], gta[bbox_num, 2], gta[bbox_num, 3]], [x1_anc, y1_anc, x2_anc, y2_anc])
 						
-						golden_center_x = (gta[bbox_num, 0] + gta[bbox_num, 2]) / 2.0
-						golden_center_y = (gta[bbox_num, 1] + gta[bbox_num, 3]) / 2.0
+						# calculate the regression targets if they will be needed
+						if curr_iou > best_iou_for_bbox[bbox_num]  or curr_iou > self.rpn_max_overlap : 
+							
+							golden_center_x = (gta[bbox_num, 0] + gta[bbox_num, 2]) / 2.0
+							golden_center_y = (gta[bbox_num, 1] + gta[bbox_num, 3]) / 2.0
 
-						anchor_center_x = (x1_anc + x2_anc)/2.0
-						anchor_center_y = (y1_anc + y2_anc)/2.0
-						
-						tx = (golden_center_x - anchor_center_x) / (x2_anc - x1_anc)
-						ty = (golden_center_y - anchor_center_y) / (y2_anc - y1_anc)
-						tw = np.log((gta[bbox_num, 2] - gta[bbox_num, 0]) / (x2_anc - x1_anc))
-						th = np.log((gta[bbox_num, 3] - gta[bbox_num, 1]) / (y2_anc - y1_anc))
-
-					
-					if rev_label_map[labels[bbox_num]] != 'bg':	
-						# all GT boxes should be mapped to an anchor box, so we keep track of which anchor box was best
-						if curr_iou > best_iou_for_bbox[bbox_num]:
-							best_anchor_for_bbox[bbox_num] = [jy, ix, anchor_ratio_idx, anchor_size_idx]
-							best_iou_for_bbox[bbox_num] = curr_iou
-							best_x_for_bbox[bbox_num,:] = [x1_anc, y1_anc , x2_anc, y2_anc]
-							best_dx_for_bbox[bbox_num,:] = [tx, ty, tw, th]
-
-						# we set the anchor to positive if the IOU is >0.7 (it does not matter if there was another better box, it just indicates overlap)
-						if curr_iou > rpn_max_overlap:
-							bbox_type = 'pos'
-							num_anchors_for_bbox[bbox_num] += 1
-							# we update the regression layer target if this IOU is the best for the current (x,y) and anchor position
-							if curr_iou > best_iou_for_loc:
-								best_iou_for_loc = curr_iou
-								best_regr = (tx, ty, tw, th)
-
-						# if the IOU is >0.3 and <0.7, it is ambiguous and no included in the objective
-						if rpn_min_overlap < curr_iou and curr_iou < rpn_max_overlap:
-							# gray zone between neg and pos
-							if bbox_type != 'pos':
-								bbox_type = 'neutral'
-
-
-				# turn on or off outputs depending on IOUs
-				if bbox_type == 'neg':
-					y_is_box_label[jy, ix, anchor_ratio_idx + n_anchratios * anchor_size_idx] = -1
-				elif bbox_type == 'neutral':
-					y_is_box_label[jy, ix, anchor_ratio_idx + n_anchratios * anchor_size_idx] = 0
-				elif bbox_type == 'pos':
-					y_is_box_label[jy, ix, anchor_ratio_idx + n_anchratios * anchor_size_idx] = 1
-					start = 4 * (anchor_ratio_idx + n_anchratios * anchor_size_idx)
-					y_rpn_regr[jy, ix, start:start+4] = best_regr
+							anchor_center_x = (x1_anc + x2_anc)/2.0
+							anchor_center_y = (y1_anc + y2_anc)/2.0
+							
+							tx = (golden_center_x - anchor_center_x) / (x2_anc - x1_anc)
+							ty = (golden_center_y - anchor_center_y) / (y2_anc - y1_anc)
+							tw = np.log((gta[bbox_num, 2] - gta[bbox_num, 0]) / (x2_anc - x1_anc))
+							th = np.log((gta[bbox_num, 3] - gta[bbox_num, 1]) / (y2_anc - y1_anc))
 
 						
-	# we ensure that every bbox has at least one positive RPN region
-	for idx in range(num_anchors_for_bbox.shape[0]):
-		if num_anchors_for_bbox[idx] == 0:
-			# no box with an IOU greater than zero ...
-			if best_anchor_for_bbox[idx, 0] == -1:
-				continue
-			y_is_box_label[
-			best_anchor_for_bbox[idx,0], 
-			best_anchor_for_bbox[idx,1], 
-			best_anchor_for_bbox[idx,2] + n_anchratios * best_anchor_for_bbox[idx,3]
-			] = 1
-			start = 4 * (best_anchor_for_bbox[idx,2] + n_anchratios * best_anchor_for_bbox[idx,3])
-			y_rpn_regr[
-				best_anchor_for_bbox[idx,0], best_anchor_for_bbox[idx,1], start:start+4] = best_dx_for_bbox[idx, :]
+						if self.rev_label_map[labels[bbox_num]] != 'bg':	
+							# all GT boxes should be mapped to an anchor box, so we keep track of which anchor box was best
+							if curr_iou > best_iou_for_bbox[bbox_num]:
+								best_anchor_for_bbox[bbox_num] = [jy, ix, anchor_ratio_idx, anchor_size_idx]
+								best_iou_for_bbox[bbox_num] = curr_iou
+								best_x_for_bbox[bbox_num,:] = [x1_anc, y1_anc , x2_anc, y2_anc]
+								best_dx_for_bbox[bbox_num,:] = [tx, ty, tw, th]
+
+							# we set the anchor to positive if the IOU is >0.7 (it does not matter if there was another better box, it just indicates overlap)
+							if curr_iou > self.rpn_max_overlap:
+								bbox_type = 'pos'
+								num_anchors_for_bbox[bbox_num] += 1
+								# we update the regression layer target if this IOU is the best for the current (x,y) and anchor position
+								if curr_iou > best_iou_for_loc:
+									best_iou_for_loc = curr_iou
+									best_regr = (tx, ty, tw, th)
+
+							# if the IOU is >0.3 and <0.7, it is ambiguous and no included in the objective
+							if self.rpn_min_overlap < curr_iou and curr_iou < self.rpn_max_overlap:
+								# gray zone between neg and pos
+								if bbox_type != 'pos':
+									bbox_type = 'neutral'
 
 
-	num_regions = 500
-	pos_locs = np.where(y_is_box_label == 1 )
-	num_pos = len(pos_locs[0])
+					# turn on or off outputs depending on IOUs
+					if bbox_type == 'neg':
+						y_is_box_label[jy, ix, anchor_ratio_idx + n_anchratios * anchor_size_idx] = -1
+					elif bbox_type == 'neutral':
+						y_is_box_label[jy, ix, anchor_ratio_idx + n_anchratios * anchor_size_idx] = 0
+					elif bbox_type == 'pos':
+						y_is_box_label[jy, ix, anchor_ratio_idx + n_anchratios * anchor_size_idx] = 1
+						start = 4 * (anchor_ratio_idx + n_anchratios * anchor_size_idx)
+						y_rpn_regr[jy, ix, start:start+4] = best_regr
 
-	neg_locs = np.where(y_is_box_label == -1 )
-	num_neg =  len(neg_locs[0])
-
-	# one issue is that the RPN has many more negative than positive regions, so we turn off some of the negative
-	# regions. We also limit it to 256 regions.
-	if num_pos > num_regions/2:
-		non_valid_boxes  = random.sample(range( num_pos ), num_pos - num_regions/2)
-		y_is_box_label[pos_locs[0][non_valid_boxes], pos_locs[1][non_valid_boxes], pos_locs[2][non_valid_boxes]] = 0 
-		num_pos = num_regions/2
-
-	if num_neg + num_pos > num_regions:
-		non_valid_boxes = random.sample(range(num_neg), num_neg - num_pos)
-		y_is_box_label[neg_locs[0][non_valid_boxes], neg_locs[1][non_valid_boxes], neg_locs[2][non_valid_boxes]] = 0 
-
-	y_is_box_label = np.transpose(y_is_box_label, (2, 0, 1))
-	y_is_box_label = np.expand_dims(y_is_box_label, axis=0)
-
-	y_rpn_regr = np.transpose(y_rpn_regr, (2, 0, 1))
-	y_rpn_regr = np.expand_dims(y_rpn_regr, axis=0)
-	
-	y_rpn_regr = np.concatenate([np.repeat(y_is_box_label, 4, axis=1), y_rpn_regr], axis=1)
-
-	return np.copy(y_is_box_label), np.copy(y_rpn_regr), num_pos
+							
+		# we ensure that every bbox has at least one positive RPN region
+		for idx in range(num_anchors_for_bbox.shape[0]):
+			if num_anchors_for_bbox[idx] == 0:
+				# no box with an IOU greater than zero ...
+				if best_anchor_for_bbox[idx, 0] == -1:
+					continue
+				y_is_box_label[
+				best_anchor_for_bbox[idx,0], 
+				best_anchor_for_bbox[idx,1], 
+				best_anchor_for_bbox[idx,2] + n_anchratios * best_anchor_for_bbox[idx,3]
+				] = 1
+				start = 4 * (best_anchor_for_bbox[idx,2] + n_anchratios * best_anchor_for_bbox[idx,3])
+				y_rpn_regr[
+					best_anchor_for_bbox[idx,0], best_anchor_for_bbox[idx,1], start:start+4] = best_dx_for_bbox[idx, :]
 
 
+		num_regions = 500
+		pos_locs = np.where(y_is_box_label == 1 )
+		num_pos = len(pos_locs[0])
 
+		neg_locs = np.where(y_is_box_label == -1 )
+		num_neg =  len(neg_locs[0])
+
+		# one issue is that the RPN has many more negative than positive regions, so we turn off some of the negative
+		# regions. We also limit it to 256 regions.
+		if num_pos > num_regions/2:
+			non_valid_boxes  = random.sample(range( num_pos ), num_pos - num_regions/2)
+			y_is_box_label[pos_locs[0][non_valid_boxes], pos_locs[1][non_valid_boxes], pos_locs[2][non_valid_boxes]] = 0 
+			num_pos = num_regions/2
+
+		if num_neg + num_pos > num_regions:
+			non_valid_boxes = random.sample(range(num_neg), num_neg - num_pos)
+			y_is_box_label[neg_locs[0][non_valid_boxes], neg_locs[1][non_valid_boxes], neg_locs[2][non_valid_boxes]] = 0 
+
+		y_is_box_label = np.transpose(y_is_box_label, (2, 0, 1))
+		y_is_box_label = np.expand_dims(y_is_box_label, axis=0)
+
+		y_rpn_regr = np.transpose(y_rpn_regr, (2, 0, 1))
+		y_rpn_regr = np.expand_dims(y_rpn_regr, axis=0)
+		
+		y_rpn_regr = np.concatenate([np.repeat(y_is_box_label, 4, axis=1), y_rpn_regr], axis=1)
+
+		return np.copy(y_is_box_label), np.copy(y_rpn_regr), num_pos
 
 
  		

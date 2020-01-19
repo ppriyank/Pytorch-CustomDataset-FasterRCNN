@@ -2,11 +2,8 @@
 from PIL import Image, ImageDraw, ImageFont
   
 
-
-
-
-def verify(image, boxes, labels):
-	label_color_map = {k: distinct_colors[i] for i, k in enumerate(rev_label_map.keys())}
+def verify(image, boxes, labels, c):
+	label_color_map = {k: c.distinct_colors[i] for i, k in enumerate(c.rev_label_map.keys())}
 	draw = ImageDraw.Draw(image)
 	font = ImageFont.truetype("arial.ttf", 15)
 	for i in range( len(boxes) ):
@@ -15,12 +12,12 @@ def verify(image, boxes, labels):
 	    draw.rectangle(xy=box_location, outline=label_color_map[labels[i]])
 	    draw.rectangle(xy=[l + 1. for l in box_location], outline=label_color_map[labels[i]])  # a second rectangle at an offset of 1 pixel to increase line thickness
 	    # Text
-	    text_size = font.getsize(rev_label_map[labels[i]].upper())
+	    text_size = font.getsize(c.rev_label_map[labels[i]].upper())
 	    text_location = [box_location[0] + 2., box_location[1] - text_size[1]]
 	    textbox_location = [box_location[0], box_location[1] - text_size[1], box_location[0] + text_size[0] + 4.,
 	                        box_location[1]]
 	    draw.rectangle(xy=textbox_location, fill=label_color_map[labels[i]])
-	    draw.text(xy=text_location, text=rev_label_map[labels[i]].upper(), fill='white',font=font)
+	    draw.text(xy=text_location, text=c.rev_label_map[labels[i]].upper(), fill='white',font=font)
 	image.show()
 
 
