@@ -143,3 +143,16 @@ class config(object):
 
 c = config()
 rpm = RPM(anchor_sizes , anchor_ratios, valid_anchors, c.rev_label_map)
+
+
+
+lambda_rpn_regr = 1.0
+lambda_rpn_class = 1.0
+
+lambda_cls_regr = 1.0
+lambda_cls_class = 1.0
+
+epsilon = 1e-4
+
+num_rois = 4 # Number of RoIs to process at once.
+random.seed(1)

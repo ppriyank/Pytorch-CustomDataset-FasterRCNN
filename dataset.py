@@ -32,7 +32,10 @@ class Dataset(Dataset):
         self.anchor_sizes = anchor_sizes
         self.anchor_ratios = anchor_ratios
         self.valid_anchors = valid_anchors
+        self.rpm = RPM(anchor_sizes , anchor_ratios, valid_anchors, c.rev_label_map)
+
         self.image_resize_size = image_resize_size
+
 
     def __getitem__(self, i, verify_image=False):
         # Read image
@@ -51,9 +54,9 @@ class Dataset(Dataset):
         image, boxes = self.transform.apply_transform(image, boxes)
 
         if self.image_resize_size: 
-            calc_rpn(boxes , labels,  image_resize_size=image_resize_size)
+            y_is_box_label, y_rpn_regr, num_pos  = self.rpm.calc_rpn(boxes , labels,  image_resize_size=self.image_resize_size)
         else:
-            calc_rpn(boxes , labels,  image_resize_size=image_resize_size)
+            y_is_box_label, y_rpn_regr, num_pos = self.rpm.calc_rpn(boxes , labels,  image_resize_size=(image.size[1], image.size[0] ))
 
 
         boxes = torch.FloatTensor(objects['boxes'])  # (n_objects, 4)

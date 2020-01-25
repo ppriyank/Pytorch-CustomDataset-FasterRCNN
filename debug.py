@@ -45,14 +45,14 @@ height = 3024
 width = 4032
 
 c = config()
-verify(image, boxes, labels,c)
+# verify(image, boxes, labels,c)
 
 from dataset import Transform
 transform = Transform(train=True , resize_size=(height ,width))
 
 # Apply transformations
 image, boxes = transform.apply_transform(image, boxes)
-verify(image, boxes, labels,c)
+# verify(image, boxes, labels,c)
 
 
 out_h , out_w = base_size_calculator (height  , width)
@@ -72,14 +72,14 @@ anchor_sizes = [ 2 ** index , 2 ** (index-1) , 2 ** (index-2)]
 
 valid_anchors = valid_anchors(anchor_sizes,anchor_ratios , downscale , output_width=out_w , resized_width=width , output_height=out_h , resized_height=height)
 
+# temp_boxes = [list(b)[:4] for b in valid_anchors[2][1]]
+# temp_labels = [0 for i in range(len(temp_boxes))]
 
-
-
-temp_boxes = [list(b)[:4] for b in valid_anchors[2][1]]
-temp_labels = [0 for i in range(len(temp_boxes))]
-
-verify(image, temp_boxes, temp_labels,c)
+# verify(image, temp_boxes, temp_labels,c)
 
 
 rpm = RPM(anchor_sizes , anchor_ratios, valid_anchors, c.rev_label_map)
+y_is_box_label, y_rpn_regr, num_pos = rpm.calc_rpn(boxes , labels,  image_resize_size=(image.size[1], image.size[0] ))
 
+import cv2 
+im = cv2.imread("../IMG_0504.jpg")

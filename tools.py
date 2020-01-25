@@ -108,7 +108,7 @@ class RPM():
 		best_dx_for_bbox = np.zeros((num_bboxes, 4)).astype(np.float32)
 
 		gta = np.array((boxes))
-		
+
 		for key1 in self.valid_anchors:
 			for key2 in self.valid_anchors[key1]:
 				for anchor_box in self.valid_anchors[key1][key2]: 
@@ -125,7 +125,9 @@ class RPM():
 					# get IOU of the current GT box and the current anchor box
 					for bbox_num in range(num_bboxes):
 						curr_iou = iou([gta[bbox_num, 0], gta[bbox_num, 1], gta[bbox_num, 2], gta[bbox_num, 3]], [x1_anc, y1_anc, x2_anc, y2_anc])
-						
+						# import pdb
+						# pdb.set_trace()
+
 						# calculate the regression targets if they will be needed
 						if curr_iou > best_iou_for_bbox[bbox_num]  or curr_iou > self.rpn_max_overlap : 
 							
@@ -216,7 +218,7 @@ class RPM():
 		y_rpn_regr = np.transpose(y_rpn_regr, (2, 0, 1))
 		y_rpn_regr = np.expand_dims(y_rpn_regr, axis=0)
 		
-		y_rpn_regr = np.concatenate([np.repeat(y_is_box_label, 4, axis=1), y_rpn_regr], axis=1)
+		# y_rpn_regr = np.concatenate([np.repeat(y_is_box_label, 4, axis=1), y_rpn_regr], axis=1)
 
 		return np.copy(y_is_box_label), np.copy(y_rpn_regr), num_pos
 
