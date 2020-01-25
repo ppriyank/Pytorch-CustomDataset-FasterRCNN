@@ -12,14 +12,39 @@ from torch.utils.data import DataLoader
 from torch.autograd import Variable
 
 
-import models
+import model
+from tools import * 
 
-label_dict = {0:'car' , 1:'person' , 2:'bg'}
+from dataset import Dataset
+import torchvision.transforms as transforms
+
+class Config(object):
+    """docstring for config"""
+    def __init__(self):
+        super(Config, self).__init__()
+        self.voc_labels = ('laptop', 'person', 'lights', 'drinks' , 'projector')
+        self.label_map = {k: v for v, k in enumerate(self.voc_labels)}
+        self.label_map['bg'] = len(self.label_map)
+        self.rev_label_map = {v: k for k, v in self.label_map.items()}  # Inverse mapping
+        # Color map for bounding boxes of detected objects from https://sashat.me/2017/01/11/list-of-20-simple-distinct-colors/
+        self.distinct_colors = ['#e6194b', '#3cb44b', '#ffe119', '#0082c8', '#f58231', '#911eb4', '#46f0f0', '#f032e6',
+                   '#d2f53c', '#fabebe', '#008080', '#000080', '#aa6e28', '#fffac8', '#800000', '#aaffc3', '#808000',
+                   '#ffd8b1', '#e6beff', '#808080', '#FFFFFF']
+
+
+config = Config()
 
 
 parser = argparse.ArgumentParser(description='Faster RCNN (Custom Dataset)')
 parser.add_argument('--train-batch', default=32, type=int,
                     help="train batch size")
+
+parser.add_argument('--workers', default=8, type=int,
+                    help="# of workers")
+parser.add_argument('--seed', default=1, type=int,
+                    help="# seed")
+parser.add_argument('--gpu-devices', default="0,1", type=str,
+                    help="# of gpu devices")
 
 
 parser.add_argument('-d', '--dataset', type=str, default='./',
@@ -31,8 +56,8 @@ parser.add_argument('--height', type=int, default=800,
 parser.add_argument('--width', type=int, default=600,
                     help="width of an image (default: 600)")
 
-parser.add_argument('--anchor-box-scales', default=None, type=list)
-parser.add_argument('--anchor_ratio', default=[1,0.5,2], type=list)
+parser.add_argument('--anchor-sizes', default=None, type=list)
+parser.add_argument('--anchor-ratio', default=[1,0.5,2], type=list)
 
 parser.add_argument('--rpn-min-overlap', default=0.3, type=float,
                     help="min overlap")
@@ -40,68 +65,19 @@ parser.add_argument('--rpn-max-overlap', default=0.7, type=float,
                     help="max overlap with ground truth ")
 
 
-if args.anchor_box_scales == None : 
-     min_dim = min(args.height, args.width)
-     index = math.floor(math.log(min_dim) /  math.log(2))
-     args.anchor_box_scales = [ 2 ** index , 2 ** (index-1) , 2 ** (index-2)]
-
-
-
-
-
-
-
-
-
-parser.add_argument('-j', '--workers', default=4, type=int,
-                    help="number of data loading workers (default: 4)")
-parser.add_argument('--seq-len', type=int, default=4, help="number of images to sample in a tracklet")
-# Optimization options
-parser.add_argument('--start-epoch', default=0, type=int,
-                    help="manual epoch number (useful on restarts)")
-parser.add_argument('--test-batch', default=1, type=int, help="has to be 1")
-parser.add_argument('--stepsize', default=200, type=int,
-                    help="stepsize to decay learning rate (>0 means this is enabled)")
-parser.add_argument('--gamma', default=0.1, type=float,
-                    help="learning rate decay")
-parser.add_argument('--weight-decay', default=5e-04, type=float,
-                    help="weight decay (default: 5e-04)")
-parser.add_argument('--margin', type=float, default=0.3, help="margin for triplet loss")
-parser.add_argument('--num-instances', type=int, default=4,
-                    help="number of instances per identity")
-parser.add_argument('--use-OSMCAA', action='store_true', default=False,
-                    help="Use OSM CAA loss in addition to triplet")
-parser.add_argument('--cl-centers', action='store_true', default=False,
-                    help="Use cl centers verison of OSM CAA loss")
-
-# Architecture
-parser.add_argument('-a', '--arch', type=str, default='resnet50tp', help="resnet503d, resnet50tp, resnet50ta, resnetrnn")
-parser.add_argument('--pool', type=str, default='avg', choices=['avg', 'max'])
-
-# Miscs
-parser.add_argument('--print-freq', type=int, default=40, help="print frequency")
-parser.add_argument('--seed', type=int, default=1, help="manual seed")
-parser.add_argument('--pretrained-model', type=str, default='/home/jiyang/Workspace/Works/video-person-reid/3dconv-person-reid/pretrained_models/resnet-50-kinetics.pth', help='need to be set for resnet3d models')
-parser.add_argument('--evaluate', action='store_true', help="evaluation only")
-parser.add_argument('--save-dir', type=str, default='log')
-parser.add_argument('--epochs-eval', default=[10 * i for i in range(6,80)], type=list)
-parser.add_argument('--name', '--model_name', type=str, default='_bot_')
-parser.add_argument('--validation-training', action='store_true', help="more useful for validation")
-parser.add_argument('--resume-training', action='store_true', help="Continue training")
-parser.add_argument('--gpu-devices', default='0,1,2', type=str, help='gpu device ids for CUDA_VISIBLE_DEVICES')
-parser.add_argument('-f', '--focus', type=str, default='map', help="map,rerank_map")
-
 args = parser.parse_args()
+torch.manual_seed(args.seed)
+torch.cuda.manual_seed_all(args.seed)
+
+# args.gpu_devices = "0,1"
+os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu_devices
+use_gpu = torch.cuda.is_available()
+pin_memory = True if use_gpu else False
+cudnn.benchmark = True
 
 
-
-from tools import * 
-# height = 300
-# width = 400
-height = 4032
-width = 3024
-
-
+height = args.height
+width = args.width
 out_h , out_w = base_size_calculator (height  , width)
 
 # see convention figure 
@@ -111,34 +87,39 @@ downscale = max(
         )
 
 
+if args.anchor_sizes == None : 
+    min_dim = min(height, width)
+    index = math.floor(math.log(min_dim) /  math.log(2))
+    args.anchor_sizes = [ 2 ** index , 2 ** (index-1) , 2 ** (index-2)]
 
-
-anchor_ratios = [1,0.5,2]
-
-min_dim = min(height, width)
-index = math.floor(math.log(min_dim) /  math.log(2))
-anchor_sizes = [ 2 ** index , 2 ** (index-1) , 2 ** (index-2)]
-
-
+anchor_ratios = args.anchor_ratio
 valid_anchors = valid_anchors(anchor_sizes,anchor_ratios , downscale , output_width=out_w , resized_width=width , output_height=out_h , resized_height=height)
-# valid_anchors = valid_anchors(anchor_sizes,anchor_ratios , downscale , out_w , width , out_h , height)
 
 
+dataset_train =  Dataset(data_folder=args.dataset, anchor_sizes = anchor_sizes, anchor_ratios = anchor_ratios, valid_anchors=valid_anchors, rev_label_map=config.rev_label_map,  split='TRAIN', image_resize_size= (height, width),  debug= False)
+dataset_test =  Dataset(data_folder=args.dataset, anchor_sizes = anchor_sizes, anchor_ratios = anchor_ratios, valid_anchors=valid_anchors, rev_label_map=config.rev_label_map,  split='TEST', image_resize_size= (height, width),  debug= False)
 
-class config(object):
-    """docstring for config"""
-    def __init__(self):
-        super(config, self).__init__()
-        self.voc_labels = ('laptop', 'person', 'lights', 'drinks' , 'projector')
-        self.label_map = {k: v for v, k in enumerate(self.voc_labels)}
-        self.label_map['bg'] = len(self.label_map)
-        self.rev_label_map = {v: k for k, v in self.label_map.items()}  # Inverse mapping
-        # Color map for bounding boxes of detected objects from https://sashat.me/2017/01/11/list-of-20-simple-distinct-colors/
-        self.distinct_colors = ['#e6194b', '#3cb44b', '#ffe119', '#0082c8', '#f58231', '#911eb4', '#46f0f0', '#f032e6',
-                   '#d2f53c', '#fabebe', '#008080', '#000080', '#aa6e28', '#fffac8', '#800000', '#aaffc3', '#808000',
-                   '#ffd8b1', '#e6beff', '#808080', '#FFFFFF']
+trainloader = DataLoader(
+    dataset_train, shuffle=True,  collate_fn=collate_fn, 
+    batch_size=args.train_batch, num_workers=args.workers, pin_memory=pin_memory, drop_last=True)
 
-        
+
+c= next(trainloader)
+Y = c[3]
+
+cls = Y[0][0]
+regr = Y[1][0]
+
+
+trans = transforms.ToPILImage()
+img = trans(c[0]).convert("RGB")
+box = c[1]
+labels = c[2]
+debug_num_pos = c[-1]   
+verify2(img, box, labels="GT", config= config , color='#e6194b' , name="ground_truth")
+n_anchratios = len(anchor_ratios)
+
+
 
 
 c = config()
@@ -159,4 +140,15 @@ random.seed(1)
 
 
 std_scaling = 4
+
+
+
+
+input_shape_img = (None, None, 3)
+
+img_input = Input(shape=input_shape_img)
+roi_input = Input(shape=(None, 4))
+
+# define the base network (VGG here, can be Resnet50, Inception, etc)
+shared_layers = nn_base(img_input, trainable=True)
 

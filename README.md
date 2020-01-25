@@ -10,21 +10,16 @@ Shaoqing Ren, Kaiming He, Ross Girshick, Jian Sun
 
 ### Todo :
 - [ ] classification layer
-- [ ] Dataloader 
 - [ ] RoiPoolingConv
 - [ ] saving model and loading model
-- [ ] complete calc_rpn 
 - [ ] image transformation with respect to bounding box 
-- [ ] get_anchor_gt
 - [ ] loss functions 
 - [ ] non_max_suppression_fast
 - [ ] credits 
 - [ ] rpn_to_roi
 - [ ] training code 
 - [ ] parallelize the code ?? : calc_rpn
-- [ ] valid boxes
 - [ ] create parsing json read/write functions
-- [ ] loss functions 
 - [ ] How to run and what changes to make ?? 
 
 

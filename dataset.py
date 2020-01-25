@@ -81,36 +81,37 @@ class Dataset(Dataset):
     def __len__(self):
         return len(self.images)
 
-    def collate_fn(self, batch):
-        """
-        Since each image may have a different number of objects, we need a collate function (to be passed to the DataLoader).
-        This describes how to combine these tensors of different sizes. We use lists.
-        Note: this need not be defined in this Class, can be standalone.
-        :param batch: an iterable of N sets from __getitem__()
-        :return: a tensor of images, lists of varying-size tensors of bounding boxes, labels
-        """
-
-        images = list()
-        boxes = list()
-        labels = list()
-        y_is_box_label = list()
-        num_pos =  list()
-        y_rpn_regr = list()
 
 
-        for b in batch:
-            images.append(b[0])
-            boxes.append(b[1])
-            labels.append(b[2])
-            y_is_box_label.append(b[3])
-            y_rpn_regr.append(b[4])
-            num_pos.append(b[5])
-            
-        images = torch.stack(images, dim=0)
-        y_is_box_label = torch.stack(y_is_box_label, dim=0)
-        y_rpn_regr = torch.stack(y_rpn_regr, dim=0)
+def collate_fn( batch):
+    """
+    Since each image may have a different number of objects, we need a collate function (to be passed to the DataLoader).
+    This describes how to combine these tensors of different sizes. We use lists.
+    :param batch: an iterable of N sets from __getitem__()
+    :return: a tensor of images, lists of varying-size tensors of bounding boxes, labels
+    """
 
-        return images, boxes, labels , y_is_box_label, y_rpn_regr , num_pos
+    images = list()
+    boxes = list()
+    labels = list()
+    y_is_box_label = list()
+    num_pos =  list()
+    y_rpn_regr = list()
+
+
+    for b in batch:
+        images.append(b[0])
+        boxes.append(b[1])
+        labels.append(b[2])
+        y_is_box_label.append(b[3])
+        y_rpn_regr.append(b[4])
+        num_pos.append(b[5])
+        
+    images = torch.stack(images, dim=0)
+    y_is_box_label = torch.stack(y_is_box_label, dim=0)
+    y_rpn_regr = torch.stack(y_rpn_regr, dim=0)
+
+    return images, boxes, labels , y_is_box_label, y_rpn_regr , num_pos
 
 
 
