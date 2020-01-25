@@ -11,7 +11,7 @@ from tools import RPM
 
 class Dataset(Dataset):
     
-    def __init__(self, data_folder ,anchor_sizes, anchor_ratios , valid_anchors,  rev_label_map,  split, image_resize_size=None , debug=False):
+    def __init__(self, data_folder ,anchor_sizes, anchor_ratios , valid_anchors,  rev_label_map,  split, std_scaling=4.0, image_resize_size=None , debug=False):
         self.split = split.upper()
         assert self.split in {'TRAIN', 'TEST'}
         self.data_folder = data_folder
@@ -35,6 +35,7 @@ class Dataset(Dataset):
         self.valid_anchors = valid_anchors
         self.rpm = RPM(anchor_sizes , anchor_ratios, valid_anchors, rev_label_map)
 
+        self.std_scaling = std_scaling
         self.image_resize_size = image_resize_size
         self.debug = debug
 
@@ -59,7 +60,8 @@ class Dataset(Dataset):
         else:
             y_is_box_label, y_rpn_regr, num_pos = self.rpm.calc_rpn(boxes , labels,  image_resize_size=(image.size[1], image.size[0] ))
 
-
+        y_rpn_regr = y_rpn_regr * self.std_scaling
+        
         boxes = torch.FloatTensor(objects['boxes'])  # (n_objects, 4)
         labels = torch.LongTensor(objects['labels'])  # (n_objects)
 
@@ -69,7 +71,7 @@ class Dataset(Dataset):
             image = self.transform.normalize( self.transform.to_tensor(image) )
         
 
-        return image, boxes, labels , y_is_box_label, y_rpn_regr, num_pos
+        return image, boxes, labels , [y_is_box_label, y_rpn_regr], num_pos
 
     def __len__(self):
         return len(self.images)

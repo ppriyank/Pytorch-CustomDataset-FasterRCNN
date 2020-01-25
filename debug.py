@@ -132,6 +132,7 @@ valid_anchors = valid_anchors(anchor_sizes,anchor_ratios=[1,0.5,2] , downscale=d
 db =  Dataset(data_folder=".", anchor_sizes = anchor_sizes, anchor_ratios = [1,0.5,2], valid_anchors=valid_anchors, rev_label_map=c.rev_label_map,  split='TRAIN', debug= True)
 
 c= next(iter(db))
+Y = c[3]
 
 import torchvision.transforms as transforms
 trans = transforms.ToPILImage()
@@ -139,3 +140,5 @@ trans = transforms.ToPILImage()
 z = trans(c[0]).convert("RGB")
 import matplotlib.pyplot as plt
 plt.imshow(z)
+
+

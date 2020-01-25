@@ -158,3 +158,5 @@ num_rois = 4 # Number of RoIs to process at once.
 random.seed(1)
 
 
+std_scaling = 4
+

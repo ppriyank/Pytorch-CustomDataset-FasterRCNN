@@ -212,15 +212,16 @@ class RPM():
 			non_valid_boxes = random.sample(range(num_neg), num_neg - num_pos)
 			y_is_box_label[neg_locs[0][non_valid_boxes], neg_locs[1][non_valid_boxes], neg_locs[2][non_valid_boxes]] = 0 
 
-		y_is_box_label = np.transpose(y_is_box_label, (2, 0, 1))
+		# y_is_box_label = np.transpose(y_is_box_label, (2, 0, 1))
 		y_is_box_label = np.expand_dims(y_is_box_label, axis=0)
 
-		y_rpn_regr = np.transpose(y_rpn_regr, (2, 0, 1))
+		# y_rpn_regr = np.transpose(y_rpn_regr, (2, 0, 1))
 		y_rpn_regr = np.expand_dims(y_rpn_regr, axis=0)
 		
 		# y_rpn_regr = np.concatenate([np.repeat(y_is_box_label, 4, axis=1), y_rpn_regr], axis=1)
 
-		return np.copy(y_is_box_label), np.copy(y_rpn_regr), num_pos
+		return y_is_box_label, y_rpn_regr, num_pos
+		# return np.copy(y_is_box_label), np.copy(y_rpn_regr), num_pos
 
 
  		
