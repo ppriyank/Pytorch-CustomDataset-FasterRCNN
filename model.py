@@ -33,7 +33,7 @@ class Model(nn.Module):
         h = x.size(2)
         w = x.size(3)
 
-        x = self.base(x)
+        base_x = self.base(x)
 
         #### RPN 
         #torch.Size([32, 2048, 50, 38])
@@ -43,9 +43,11 @@ class Model(nn.Module):
 
         cls_k = self.sigmoid1(self.rpn_cls(x))
         #torch.Size([b, k, 50, 38])
+
         reg_k = self.rpn_reg(x)
         #torch.Size([b, 4 *k, 50, 38])
-
+        
+        # [cls_k , reg_k, base_x]
         
         x = F.avg_pool2d(x, x.size()[2:])
         x = x.view(b,t,-1)

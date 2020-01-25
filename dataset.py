@@ -11,7 +11,7 @@ from tools import RPM
 
 class Dataset(Dataset):
     
-    def __init__(self, data_folder ,anchor_sizes, anchor_ratios , valid_anchors,  rev_label_map,  split, std_scaling=4.0, image_resize_size=None , debug=False):
+    def __init__(self, data_folder , rpm, split, std_scaling=4.0, image_resize_size=None , debug=False):
         self.split = split.upper()
         assert self.split in {'TRAIN', 'TEST'}
         self.data_folder = data_folder
@@ -30,10 +30,7 @@ class Dataset(Dataset):
         else:
             self.transform = Transform(train=False , resize_size=image_resize_size)
 
-        self.anchor_sizes = anchor_sizes
-        self.anchor_ratios = anchor_ratios
-        self.valid_anchors = valid_anchors
-        self.rpm = RPM(anchor_sizes , anchor_ratios, valid_anchors, rev_label_map)
+        self.rpm = rpm
 
         self.std_scaling = std_scaling
         self.image_resize_size = image_resize_size
@@ -62,13 +59,11 @@ class Dataset(Dataset):
 
         y_rpn_regr = y_rpn_regr * self.std_scaling
 
-        if self.debug:
-            boxes = boxes  # (n_objects, 4)
-            labels = labels  # (n_objects)
-        else:
+        if not self.debug:
             boxes = torch.FloatTensor(boxes)  # (n_objects, 4)
             labels = torch.LongTensor(labels)  # (n_objects)
-
+            y_is_box_label = torch.FloatTensor(y_is_box_label)
+            y_rpn_regr = torch.FloatTensor(y_rpn_regr)
 
         if self.debug:
             image = self.transform.to_tensor(image) 
@@ -103,15 +98,15 @@ def collate_fn( batch):
         images.append(b[0])
         boxes.append(b[1])
         labels.append(b[2])
-        y_is_box_label.append(b[3])
-        y_rpn_regr.append(b[4])
-        num_pos.append(b[5])
+        y_is_box_label.append(b[3][0])
+        y_rpn_regr.append(b[3][0])
+        num_pos.append(b[4])
         
     images = torch.stack(images, dim=0)
     y_is_box_label = torch.stack(y_is_box_label, dim=0)
     y_rpn_regr = torch.stack(y_rpn_regr, dim=0)
 
-    return images, boxes, labels , y_is_box_label, y_rpn_regr , num_pos
+    return images, boxes, labels , [y_is_box_label, y_rpn_regr] , num_pos
 
 
 

@@ -111,7 +111,9 @@ import copy
 
 config = config()
 
-db =  Dataset(data_folder=".", anchor_sizes = anchor_sizes, anchor_ratios = anchor_ratios, valid_anchors=valid_anchors, rev_label_map=config.rev_label_map,  split='TRAIN',image_resize_size= (height, width),  debug= True)
+rpm = RPM(anchor_sizes , anchor_ratios, valid_anchors, config.rev_label_map)
+
+db =  Dataset(data_folder=".", rpm=rpm, split='TRAIN',image_resize_size= (height, width),  debug= True)
 c= next(iter(db))
 Y = c[3]
 

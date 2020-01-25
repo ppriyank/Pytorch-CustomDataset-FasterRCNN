@@ -15,7 +15,7 @@ from torch.autograd import Variable
 import model
 from tools import * 
 
-from dataset import Dataset
+from dataset import Dataset , collate_fn
 import torchvision.transforms as transforms
 
 class Config(object):
@@ -36,7 +36,7 @@ config = Config()
 
 
 parser = argparse.ArgumentParser(description='Faster RCNN (Custom Dataset)')
-parser.add_argument('--train-batch', default=32, type=int,
+parser.add_argument('--train-batch', default=1, type=int,
                     help="train batch size")
 
 parser.add_argument('--workers', default=8, type=int,
@@ -64,6 +64,10 @@ parser.add_argument('--rpn-min-overlap', default=0.3, type=float,
 parser.add_argument('--rpn-max-overlap', default=0.7, type=float,
                     help="max overlap with ground truth ")
 
+parser.add_argument('--std_scaling', default=4.0, type=float,
+                    help="scalling factor for regression ")
+
+
 
 args = parser.parse_args()
 torch.manual_seed(args.seed)
@@ -78,6 +82,8 @@ cudnn.benchmark = True
 
 height = args.height
 width = args.width
+std_scaling = args.std_scaling
+
 out_h , out_w = base_size_calculator (height  , width)
 
 # see convention figure 
@@ -92,40 +98,31 @@ if args.anchor_sizes == None :
     index = math.floor(math.log(min_dim) /  math.log(2))
     args.anchor_sizes = [ 2 ** index , 2 ** (index-1) , 2 ** (index-2)]
 
+
 anchor_ratios = args.anchor_ratio
+anchor_sizes = args.anchor_sizes
+num_anchors = len(anchor_ratios) * len(anchor_sizes)
+
 valid_anchors = valid_anchors(anchor_sizes,anchor_ratios , downscale , output_width=out_w , resized_width=width , output_height=out_h , resized_height=height)
 
+rpm = RPM(anchor_sizes , anchor_ratios, valid_anchors, config.rev_label_map, rpn_max_overlap=args.rpn_max_overlap , rpn_min_overlap= args.rpn_min_overlap)
 
-dataset_train =  Dataset(data_folder=args.dataset, anchor_sizes = anchor_sizes, anchor_ratios = anchor_ratios, valid_anchors=valid_anchors, rev_label_map=config.rev_label_map,  split='TRAIN', image_resize_size= (height, width),  debug= False)
-dataset_test =  Dataset(data_folder=args.dataset, anchor_sizes = anchor_sizes, anchor_ratios = anchor_ratios, valid_anchors=valid_anchors, rev_label_map=config.rev_label_map,  split='TEST', image_resize_size= (height, width),  debug= False)
+dataset_train =  Dataset(data_folder=args.dataset, rpm=rpm, split='TRAIN', std_scaling=std_scaling, image_resize_size= (height, width),  debug= False)
+dataset_test =  Dataset(data_folder=args.dataset, rpm=rpm, split='TEST', std_scaling=std_scaling, image_resize_size= (height, width),  debug= False)
 
-trainloader = DataLoader(
+
+train_loader = DataLoader(
     dataset_train, shuffle=True,  collate_fn=collate_fn, 
     batch_size=args.train_batch, num_workers=args.workers, pin_memory=pin_memory, drop_last=True)
 
 
-c= next(trainloader)
-Y = c[3]
-
-cls = Y[0][0]
-regr = Y[1][0]
+test_loader = DataLoader(
+    dataset_test, shuffle=True,  collate_fn=collate_fn, 
+    batch_size=1, num_workers=args.workers, pin_memory=pin_memory, drop_last=True)
 
 
-trans = transforms.ToPILImage()
-img = trans(c[0]).convert("RGB")
-box = c[1]
-labels = c[2]
-debug_num_pos = c[-1]   
-verify2(img, box, labels="GT", config= config , color='#e6194b' , name="ground_truth")
-n_anchratios = len(anchor_ratios)
-
-
-
-
-c = config()
-rpm = RPM(anchor_sizes , anchor_ratios, valid_anchors, c.rev_label_map)
-
-
+# sanity check 
+# list(train_loader)
 
 lambda_rpn_regr = 1.0
 lambda_rpn_class = 1.0
@@ -139,16 +136,61 @@ num_rois = 4 # Number of RoIs to process at once.
 random.seed(1)
 
 
-std_scaling = 4
 
 
 
 
-input_shape_img = (None, None, 3)
 
-img_input = Input(shape=input_shape_img)
-roi_input = Input(shape=(None, 4))
 
 # define the base network (VGG here, can be Resnet50, Inception, etc)
 shared_layers = nn_base(img_input, trainable=True)
 
+
+ 
+
+rpn = rpn_layer(shared_layers, num_anchors)
+
+classifier = classifier_layer(shared_layers, roi_input, C.num_rois, nb_classes=len(classes_count))
+
+model_rpn = Model(img_input, rpn[:2])
+model_classifier = Model([img_input, roi_input], classifier)
+
+# this is a model that holds both the RPN and the classifier, used to load/save weights for the models
+model_all = Model([img_input, roi_input], rpn[:2] + classifier)
+
+# Because the google colab can only run the session several hours one time (then you need to connect again), 
+# we need to save the model and load the model to continue training
+if not os.path.isfile(C.model_path):
+    #If this is the begin of the training, load the pre-traind base network such as vgg-16
+    try:
+        print('This is the first time of your training')
+        print('loading weights from {}'.format(C.base_net_weights))
+        model_rpn.load_weights(C.base_net_weights, by_name=True)
+        model_classifier.load_weights(C.base_net_weights, by_name=True)
+    except:
+        print('Could not load pretrained model weights. Weights can be found in the keras application folder \
+            https://github.com/fchollet/keras/tree/master/keras/applications')
+    
+    # Create the record.csv file to record losses, acc and mAP
+    record_df = pd.DataFrame(columns=['mean_overlapping_bboxes', 'class_acc', 'loss_rpn_cls', 'loss_rpn_regr', 'loss_class_cls', 'loss_class_regr', 'curr_loss', 'elapsed_time', 'mAP'])
+else:
+    # If this is a continued training, load the trained model from before
+    print('Continue training based on previous trained model')
+    print('Loading weights from {}'.format(C.model_path))
+    model_rpn.load_weights(C.model_path, by_name=True)
+    model_classifier.load_weights(C.model_path, by_name=True)
+    
+    # Load the records
+    record_df = pd.read_csv(record_path)
+
+    r_mean_overlapping_bboxes = record_df['mean_overlapping_bboxes']
+    r_class_acc = record_df['class_acc']
+    r_loss_rpn_cls = record_df['loss_rpn_cls']
+    r_loss_rpn_regr = record_df['loss_rpn_regr']
+    r_loss_class_cls = record_df['loss_class_cls']
+    r_loss_class_regr = record_df['loss_class_regr']
+    r_curr_loss = record_df['curr_loss']
+    r_elapsed_time = record_df['elapsed_time']
+    r_mAP = record_df['mAP']
+
+    print('Already train %dK batches'% (len(record_df)))

@@ -41,7 +41,7 @@ def verify2(image, boxes, labels, config , color, name=""):
 	image.show()
 	image.save(name + ".jpg") 
 
-color = (0, 255, 0)
+
 
 
 def true_box(image, boxes, labels,name="verify/", id=0):
