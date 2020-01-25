@@ -7,10 +7,11 @@ import torchvision.transforms as transforms
 from plot import verify
 
 import random 
+from tools import RPM 
 
 class Dataset(Dataset):
     
-    def __init__(self, data_folder , labels ,anchor_sizes, anchor_ratios ,  split, image_resize_size=None ,keep_difficult=False):
+    def __init__(self, data_folder ,anchor_sizes, anchor_ratios , valid_anchors,  rev_label_map,  split, image_resize_size=None , debug=False):
         self.split = split.upper()
         assert self.split in {'TRAIN', 'TEST'}
         self.data_folder = data_folder
@@ -22,7 +23,7 @@ class Dataset(Dataset):
             self.objects = json.load(j)
 
         assert len(self.images) == len(self.objects)
-        self.labels = labels
+        # self.labels = labels
 
         if self.split == 'TRAIN':
             self.transform = Transform(train=True , resize_size=image_resize_size)
@@ -32,17 +33,17 @@ class Dataset(Dataset):
         self.anchor_sizes = anchor_sizes
         self.anchor_ratios = anchor_ratios
         self.valid_anchors = valid_anchors
-        self.rpm = RPM(anchor_sizes , anchor_ratios, valid_anchors, c.rev_label_map)
+        self.rpm = RPM(anchor_sizes , anchor_ratios, valid_anchors, rev_label_map)
 
         self.image_resize_size = image_resize_size
-
+        self.debug = debug
 
     def __getitem__(self, i, verify_image=False):
         # Read image
         image = Image.open(self.images[i], mode='r')
         image = image.convert('RGB')
 
-        # Read objects in this image (bounding boxes, labels, difficulties)
+        # Read objects in this image (bounding boxes, labels)
         objects = self.objects[i]
         boxes = objects['boxes']
         labels = objects['labels']
@@ -62,10 +63,13 @@ class Dataset(Dataset):
         boxes = torch.FloatTensor(objects['boxes'])  # (n_objects, 4)
         labels = torch.LongTensor(objects['labels'])  # (n_objects)
 
+        if self.debug:
+            image = self.transform.to_tensor(image) 
+        else:
+            image = self.transform.normalize( self.transform.to_tensor(image) )
         
-        image = self.transform.normalize( self.transform.to_tensor(image) )
 
-        return image, boxes, labels, difficulties
+        return image, boxes, labels , y_is_box_label, y_rpn_regr, num_pos
 
     def __len__(self):
         return len(self.images)
@@ -76,23 +80,30 @@ class Dataset(Dataset):
         This describes how to combine these tensors of different sizes. We use lists.
         Note: this need not be defined in this Class, can be standalone.
         :param batch: an iterable of N sets from __getitem__()
-        :return: a tensor of images, lists of varying-size tensors of bounding boxes, labels, and difficulties
+        :return: a tensor of images, lists of varying-size tensors of bounding boxes, labels
         """
 
         images = list()
         boxes = list()
         labels = list()
-        difficulties = list()
+        y_is_box_label = list()
+        num_pos =  list()
+        y_rpn_regr = list()
+
 
         for b in batch:
             images.append(b[0])
             boxes.append(b[1])
             labels.append(b[2])
-            difficulties.append(b[3])
-
+            y_is_box_label.append(b[3])
+            y_rpn_regr.append(b[4])
+            num_pos.append(b[5])
+            
         images = torch.stack(images, dim=0)
+        y_is_box_label = torch.stack(y_is_box_label, dim=0)
+        y_rpn_regr = torch.stack(y_rpn_regr, dim=0)
 
-        return images, boxes, labels, difficulties  # tensor (N, 3, 300, 300), 3 lists of N tensors each
+        return images, boxes, labels , y_is_box_label, y_rpn_regr , num_pos
 
 
 
@@ -117,7 +128,11 @@ class Transform(object):
         super(Transform, self).__init__()
         self.train = train 
         self.to_tensor = transforms.ToTensor()
-        self.resize_size = (resize_size[1] , resize_size[0])
+        if resize_size:
+            self.resize_size = (resize_size[1] , resize_size[0])
+        else:
+           self.resize_size = None 
+            
         self.normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 
     def apply_transform(self, image, boxes  ) :
