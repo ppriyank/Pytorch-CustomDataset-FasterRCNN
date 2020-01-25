@@ -64,3 +64,6 @@ For each ground truth bounding box, highest iou anchor box is kept , along with 
 
 `num_anchors_for_bbox` stores the number of positive anchor boxes associated with that golden bounding boxes.
 
+
+How anchor boxes look like : 
+<img src="https://github.com/ppriyank/Pytorch-CustomDataset-FasterRCNN/blob/master/images/Samples.jpg" width="900">

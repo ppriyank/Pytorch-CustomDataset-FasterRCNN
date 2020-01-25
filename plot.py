@@ -23,7 +23,7 @@ def verify(image, boxes, labels, c):
 
 
 
-def verify2(image, boxes, labels, config , color):
+def verify2(image, boxes, labels, config , color, name=""):
 	draw = ImageDraw.Draw(image)
 	font = ImageFont.truetype("arial.ttf", 15)
 	for i in range( len(boxes) ):
@@ -39,7 +39,7 @@ def verify2(image, boxes, labels, config , color):
 	    draw.rectangle(xy=textbox_location, fill= color )
 	    draw.text(xy=text_location, text=labels, fill='white',font=font)
 	image.show()
-
+	image.save(name + ".jpg") 
 
 color = (0, 255, 0)
 

@@ -63,11 +63,11 @@ class Dataset(Dataset):
         y_rpn_regr = y_rpn_regr * self.std_scaling
 
         if self.debug:
-            boxes = objects['boxes']  # (n_objects, 4)
-            labels = objects['labels']  # (n_objects)
+            boxes = boxes  # (n_objects, 4)
+            labels = labels  # (n_objects)
         else:
-            boxes = torch.FloatTensor(objects['boxes'])  # (n_objects, 4)
-            labels = torch.LongTensor(objects['labels'])  # (n_objects)
+            boxes = torch.FloatTensor(boxes)  # (n_objects, 4)
+            labels = torch.LongTensor(labels)  # (n_objects)
 
 
         if self.debug:
