@@ -61,9 +61,14 @@ class Dataset(Dataset):
             y_is_box_label, y_rpn_regr, num_pos = self.rpm.calc_rpn(boxes , labels,  image_resize_size=(image.size[1], image.size[0] ))
 
         y_rpn_regr = y_rpn_regr * self.std_scaling
-        
-        boxes = torch.FloatTensor(objects['boxes'])  # (n_objects, 4)
-        labels = torch.LongTensor(objects['labels'])  # (n_objects)
+
+        if self.debug:
+            boxes = objects['boxes']  # (n_objects, 4)
+            labels = objects['labels']  # (n_objects)
+        else:
+            boxes = torch.FloatTensor(objects['boxes'])  # (n_objects, 4)
+            labels = torch.LongTensor(objects['labels'])  # (n_objects)
+
 
         if self.debug:
             image = self.transform.to_tensor(image) 
