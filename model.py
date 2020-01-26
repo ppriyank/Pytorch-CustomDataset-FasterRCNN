@@ -150,9 +150,3 @@ out_class = softmax_d3(d3(red_out_roi_pool))
 out_regr = d4(red_out_roi_pool)
 
 
-
-
-
-
-
-out_roi_pool.

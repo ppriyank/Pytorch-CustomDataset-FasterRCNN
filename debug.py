@@ -168,8 +168,6 @@ c= next(iter(db))
 Y = c[3]
 
 cls = Y[0][0]
-regr = Y[1][0]
-
 
 trans = transforms.ToPILImage()
 img = trans(c[0]).convert("RGB")
@@ -186,7 +184,6 @@ def draw_boxes(nature=1):
 	print("# of boxes with label(%d) is %d" %(nature, len(pos_cls[0] )))
 	print(pos_cls)
 	possible_anchors = cls[pos_cls[0],pos_cls[1],:]
-	possible_regr = regr[pos_cls[0],pos_cls[1],:] 	
 	potential = [] 	
 	for i in range(debug_num_pos):
 		yc = pos_cls[0][i] 
@@ -247,5 +244,22 @@ temp = torch.cat(outputs,0)
     
     
 
+########################################################################################################################################################################################################################
+# Loss
+########################################################################################################################################################################################################################
+
+from utils import tile 
+import torch 
+
+y_rpn_regr = torch.rand(1,10,20,36)
+pred = torch.rand(1,10,20,36)
+y_is_box_label = torch.rand(1,10,20,9) 
+y_is_box_label = (y_is_box_label > 0.66).float() * 1 + (y_is_box_label < 0.33).float() * -1
+
+from loss import rpn_loss_regr
 
 
+l1 = rpn_loss_regr(y_true=y_rpn_regr, y_pred=pred , y_is_box_label=y_is_box_label)
+
+
+out[]

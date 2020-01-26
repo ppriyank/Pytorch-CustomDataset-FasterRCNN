@@ -32,6 +32,7 @@ class Config(object):
                    '#ffd8b1', '#e6beff', '#808080', '#FFFFFF']
 
 
+
 config = Config()
 
 
@@ -144,52 +145,30 @@ random.seed(1)
 
 
 
+base_learning_rate =  0.00035
+params = []
+for key, value in model.named_parameters():
+    if not value.requires_grad:
+        continue
+    lr = base_learning_rate
+    params += [{"params": [value], "lr": lr, "weight_decay": weight_decay}]
+
+
+
+optimizer_model = torch.optim.Adam(model_params)
+optimizer_classifier = torch.optim.Adam(classifier_params)
+
+
+model_rpn.compile(optimizer=optimizer, loss=[rpn_loss_cls(num_anchors), rpn_loss_regr(num_anchors)])
+model_classifier.compile(optimizer=optimizer_classifier, loss=[class_loss_cls, class_loss_regr(len(classes_count)-1)], metrics={'dense_class_{}'.format(len(classes_count)): 'accuracy'})
+model_all.compile(optimizer='sgd', loss='mae')
 
 
 
 
-classifier = classifier_layer(shared_layers, roi_input, C.num_rois, nb_classes=len(classes_count))
 
 
-model_rpn = Model(img_input, rpn[:2])
-model_classifier = Model([img_input, roi_input], classifier)
 
-# this is a model that holds both the RPN and the classifier, used to load/save weights for the models
-model_all = Model([img_input, roi_input], rpn[:2] + classifier)
 
-# Because the google colab can only run the session several hours one time (then you need to connect again), 
-# we need to save the model and load the model to continue training
-if not os.path.isfile(C.model_path):
-    #If this is the begin of the training, load the pre-traind base network such as vgg-16
-    try:
-        print('This is the first time of your training')
-        print('loading weights from {}'.format(C.base_net_weights))
-        model_rpn.load_weights(C.base_net_weights, by_name=True)
-        model_classifier.load_weights(C.base_net_weights, by_name=True)
-    except:
-        print('Could not load pretrained model weights. Weights can be found in the keras application folder \
-            https://github.com/fchollet/keras/tree/master/keras/applications')
-    
-    # Create the record.csv file to record losses, acc and mAP
-    record_df = pd.DataFrame(columns=['mean_overlapping_bboxes', 'class_acc', 'loss_rpn_cls', 'loss_rpn_regr', 'loss_class_cls', 'loss_class_regr', 'curr_loss', 'elapsed_time', 'mAP'])
-else:
-    # If this is a continued training, load the trained model from before
-    print('Continue training based on previous trained model')
-    print('Loading weights from {}'.format(C.model_path))
-    model_rpn.load_weights(C.model_path, by_name=True)
-    model_classifier.load_weights(C.model_path, by_name=True)
-    
-    # Load the records
-    record_df = pd.read_csv(record_path)
+         
 
-    r_mean_overlapping_bboxes = record_df['mean_overlapping_bboxes']
-    r_class_acc = record_df['class_acc']
-    r_loss_rpn_cls = record_df['loss_rpn_cls']
-    r_loss_rpn_regr = record_df['loss_rpn_regr']
-    r_loss_class_cls = record_df['loss_class_cls']
-    r_loss_class_regr = record_df['loss_class_regr']
-    r_curr_loss = record_df['curr_loss']
-    r_elapsed_time = record_df['elapsed_time']
-    r_mAP = record_df['mAP']
-
-    print('Already train %dK batches'% (len(record_df)))
