@@ -41,6 +41,8 @@ Tutorial / Credits / Source :  [source](https://towardsdatascience.com/faster-r-
 ### Dimension Convention :  
 <img src="https://github.com/ppriyank/Pytorch-CustomDataset-FasterRCNN/blob/master/images/convention.jpg" width="900">
 
+### All possible anchor boxes
+<img src="https://github.com/ppriyank/Pytorch-CustomDataset-FasterRCNN/blob/master/images/valid_anchors.jpg" width="900">
 
 ### anchor box
 

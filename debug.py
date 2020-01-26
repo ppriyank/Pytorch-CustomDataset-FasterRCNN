@@ -72,6 +72,8 @@ verify(image, boxes, labels,c)
 ########################################################################################################################################################################################################################
 from PIL import Image , ImageEnhance
 from tools import * 
+from plot import verify2 
+import copy 
 height = 3024
 width = 4032
 
@@ -80,7 +82,7 @@ image = Image.open("../IMG_0504.jpg", mode='r')
 objects = {"boxes": [[1335, 1387, 1549, 1622], [1780, 1373, 1945, 1578], [2199, 1432, 2379, 1633], [2415, 1482, 2590, 1687], [2705, 1643, 2950, 1913], [3180, 1578, 3450, 1833], [3760, 1247, 4030, 1518], [3145, 1307, 3395, 1522], [3120, 1218, 3275, 1382], [2824, 1327, 3029, 1467], [2420, 1287, 2639, 1432], [2529, 1228, 2674, 1412], [2920, 1183, 3075, 1347], [3455, 1192, 3550, 1262], [3465, 1237, 3655, 1432], [0, 1738, 205, 1955], [1045, 1627, 1435, 1842], [2180, 2077, 2690, 2357], [2149, 1707, 2444, 1872], [1850, 1623, 2140, 1808], [1734, 1603, 1895, 1753], [1620, 1597, 1745, 1697], [2959, 1487, 3249, 1688], [3450, 1537, 3795, 1722], [2744, 1317, 2839, 1463], [3709, 1167, 3874, 1438], [1644, 122, 2130, 582], [2225, 393, 2684, 578], [2724, 472, 3119, 618], [3289, 283, 3824, 502], [2769, 192, 3314, 407], [3650, 9, 4031, 197], [2074, 37, 2769, 283], [699, 177, 1334, 422], [0, 68, 240, 293], [988, 0, 1699, 152]], "labels": [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 5, 3, 3, 3, 3, 3, 3, 3, 3, 3], "difficulties": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]}
 boxes = objects['boxes']
 labels = objects['labels']
-verify2(img, boxes, labels="GT", config= config , color='#e6194b' , name="ground_truth")
+verify2(image, boxes, labels="GT", config= config , color='#e6194b' , name="ground_truth")
 
 out_h , out_w = base_size_calculator (height  , width)
 
@@ -105,7 +107,7 @@ def draw_valid_anchors(nature="check"):
             box = valid_anchors[key1][key2]
             for b in box :
                 potential.append(list(b[:4]))
-    verify2(pos_image, potential, labels="valid anchors", config= config , color='#f58231', name=str(nature))
+    verify2(pos_image, potential, labels="valid anchors", config= config , color='#f58231', name=str(nature), plot_labels=False)
 
 
 

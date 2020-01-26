@@ -23,7 +23,7 @@ def verify(image, boxes, labels, c):
 
 
 
-def verify2(image, boxes, labels, config , color, name=""):
+def verify2(image, boxes, labels, config , color, name="", plot_labels=True):
 	draw = ImageDraw.Draw(image)
 	font = ImageFont.truetype("arial.ttf", 15)
 	for i in range( len(boxes) ):
@@ -32,12 +32,13 @@ def verify2(image, boxes, labels, config , color, name=""):
 	    draw.rectangle(xy=box_location, outline= color )
 	    draw.rectangle(xy=[l + 1. for l in box_location], outline=color)  # a second rectangle at an offset of 1 pixel to increase line thickness
 	    # Text
-	    text_size = font.getsize(labels)
-	    text_location = [box_location[0] + 2., box_location[1] - text_size[1]]
-	    textbox_location = [box_location[0], box_location[1] - text_size[1], box_location[0] + text_size[0] + 4.,
-	                        box_location[1]]
-	    draw.rectangle(xy=textbox_location, fill= color )
-	    draw.text(xy=text_location, text=labels, fill='white',font=font)
+	    if plot_labels :
+		    text_size = font.getsize(labels)
+		    text_location = [box_location[0] + 2., box_location[1] - text_size[1]]
+		    textbox_location = [box_location[0], box_location[1] - text_size[1], box_location[0] + text_size[0] + 4.,
+		                        box_location[1]]
+		    draw.rectangle(xy=textbox_location, fill= color )
+		    draw.text(xy=text_location, text=labels, fill='white',font=font)
 	image.show()
 	image.save(name + ".jpg") 
 
