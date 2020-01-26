@@ -208,3 +208,44 @@ def draw_boxes(nature=1):
 draw_boxes(nature=-1)
 draw_boxes(nature=0)
 draw_boxes(nature=1)
+
+
+
+
+########################################################################################################################################################################################################################
+# Classification layer
+########################################################################################################################################################################################################################
+from PIL import Image , ImageEnhance
+import torchvision.transforms as transforms
+import torch 
+import torch.nn.functional as F
+from torch.autograd import Variable
+
+height = 3024
+width = 4032
+
+image = Image.open("../IMG_0504.jpg", mode='r')
+
+
+img= transforms.ToTensor()(image)
+rois  = torch.tensor([[12, 34, 400, 500] , [60, 60, 700, 900] , [400,500, 300 , 500] , [900,1000, 1000, 1200]])
+
+outputs = []
+for rid in range(rois.size(0)) :
+    x , y, h , w = rois[rid]
+    x , y, h , w = x.int() , y.int(), h.int() , w.int() 
+    cropped_image = img[:, y:y+h, x:x+w]
+    # img_PIL = transforms.ToPILImage()(cropped_image)
+    # resized_image = (F.adaptive_avg_pool2d(Variable(cropped_image,volatile=True), (7,7) ))
+    resized_image = (F.adaptive_avg_pool2d(Variable(cropped_image,volatile=True), (40,40) ))
+    outputs.append(resized_image.unsqueeze(0))
+    # img_PIL.show()
+    # resized_PIL = transforms.ToPILImage()(resized_image)
+    # resized_PIL.show()
+
+temp = torch.cat(outputs,0)
+    
+    
+
+
+
