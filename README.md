@@ -13,7 +13,7 @@ Shaoqing Ren, Kaiming He, Ross Girshick, Jian Sun
 - [ ] RoiPoolingConv
 - [ ] saving model and loading model
 - [ ] image transformation with respect to bounding box 
-- [ ] loss functions 
+- [ ] class loss
 - [ ] non_max_suppression_fast
 - [ ] credits 
 - [ ] rpn_to_roi

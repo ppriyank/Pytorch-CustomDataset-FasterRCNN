@@ -248,7 +248,7 @@ temp = torch.cat(outputs,0)
 # Loss
 ########################################################################################################################################################################################################################
 
-from utils import tile 
+from loss import rpn_loss_regr , rpn_loss_cls_fixed_num 
 import torch 
 
 y_rpn_regr = torch.rand(1,10,20,36)
@@ -256,10 +256,8 @@ pred = torch.rand(1,10,20,36)
 y_is_box_label = torch.rand(1,10,20,9) 
 y_is_box_label = (y_is_box_label > 0.66).float() * 1 + (y_is_box_label < 0.33).float() * -1
 
-from loss import rpn_loss_regr
-
-
 l1 = rpn_loss_regr(y_true=y_rpn_regr, y_pred=pred , y_is_box_label=y_is_box_label)
 
+pred = torch.rand(1,10,20,9)
+l2 = rpn_loss_cls_fixed_num(y_pred = pred , y_is_box_label= y_is_box_label)
 
-out[]
