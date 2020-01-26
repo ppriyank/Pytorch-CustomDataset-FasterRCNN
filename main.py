@@ -51,6 +51,7 @@ parser.add_argument('-d', '--dataset', type=str, default='./',
                     help="path of the datatset...")
 parser.add_argument('--lr', '--learning-rate', default=0.0003, type=float,
                     help="initial learning rate, use 0.0001 for rnn, use 0.0003 for pooling and attention")
+
 parser.add_argument('--height', type=int, default=800,
                     help="height of an image (default: 800)")
 parser.add_argument('--width', type=int, default=600,
@@ -79,6 +80,11 @@ use_gpu = torch.cuda.is_available()
 pin_memory = True if use_gpu else False
 cudnn.benchmark = True
 
+height = args.height
+width = args.width
+
+# height = 3024
+# width = 4032
 
 height = args.height
 width = args.width
@@ -142,15 +148,8 @@ random.seed(1)
 
 
 
-# define the base network (VGG here, can be Resnet50, Inception, etc)
-shared_layers = nn_base(img_input, trainable=True)
-
-
- 
-
-rpn = rpn_layer(shared_layers, num_anchors)
-
 classifier = classifier_layer(shared_layers, roi_input, C.num_rois, nb_classes=len(classes_count))
+
 
 model_rpn = Model(img_input, rpn[:2])
 model_classifier = Model([img_input, roi_input], classifier)

@@ -30,20 +30,24 @@ def valid_anchors(anchor_sizes,anchor_ratios , downscale , output_width , resize
 		for anchor_ratio_idx in range(n_anchratios):
 			anchor_boxes[anchor_size_idx][anchor_ratio_idx] = []
 			# (Equation : 1, see figure)
-			ratio_square_root = math.sqrt(anchor_ratios[anchor_ratio_idx])
-			anchor_x = anchor_sizes[anchor_size_idx] / ratio_square_root
-			anchor_y = anchor_sizes[anchor_size_idx] * ratio_square_root
+			ratio_square_root = abs(math.sqrt(anchor_ratios[anchor_ratio_idx]))
+			anchor_x = anchor_sizes[anchor_size_idx] * ratio_square_root
+			anchor_y = anchor_sizes[anchor_size_idx] / ratio_square_root
 			for ix in range(output_width):		
 				# x-coordinates of the current anchor box	
-				x1_anc = downscale * (ix + 0.5) - anchor_x / 2
-				x2_anc = downscale * (ix + 0.5) + anchor_x / 2	
+				x1_anc = downscale * (ix ) - anchor_x / 2
+				x2_anc = downscale * (ix ) + anchor_x / 2	
+				# x1_anc = downscale * (ix + 0.5) - anchor_x / 2
+				# x2_anc = downscale * (ix + 0.5) + anchor_x / 2	
 				# ignore boxes that go across image boundaries					
 				if x1_anc < 0 or x2_anc > resized_width:
 					continue
 				for jy in range(output_height):
 					# y-coordinates of the current anchor box
-					y1_anc = downscale * (jy + 0.5) - anchor_y / 2
-					y2_anc = downscale * (jy + 0.5) + anchor_y / 2
+					y1_anc = downscale * (jy ) - anchor_y / 2
+					y2_anc = downscale * (jy ) + anchor_y / 2
+					# y1_anc = downscale * (jy + 0.5) - anchor_y / 2
+					# y2_anc = downscale * (jy + 0.5) + anchor_y / 2
 					# ignore boxes that go across image boundaries
 					if y1_anc < 0 or y2_anc > resized_height:
 						continue
