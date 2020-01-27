@@ -75,7 +75,6 @@ def default_anchors(out_h, out_w, anchor_sizes, anchor_ratios, downscale):
 			A[2, :, :, curr_layer] = anchor_x       # width of current anchor
 			A[3, :, :, curr_layer] = anchor_y       # height of current anchor
 			curr_layer += 1
-
 	return A 
 			
 
@@ -320,46 +319,6 @@ def non_max_suppression_fast(boxes, probs, overlap_thresh=0.9, max_boxes=500):
     probs = probs[pick]
     return boxes, probs
 
-def apply_regr_np(X, T):
-    """Apply regression layer to all anchors in one feature map
-
-    Args:
-        X: shape=(4, 18, 25) the current anchor type for all points in the feature map
-        T: regression layer shape=(4, 18, 25)
-
-    Returns:
-        X: regressed position and size for current anchor
-    """
-    try:
-        x = X[0, :, :]
-        y = X[1, :, :]
-        w = X[2, :, :]
-        h = X[3, :, :]
-
-        tx = T[0, :, :]
-        ty = T[1, :, :]
-        tw = T[2, :, :]
-        th = T[3, :, :]
-
-        cx = x + w/2.
-        cy = y + h/2.
-        cx1 = tx * w + cx
-        cy1 = ty * h + cy
-
-        w1 = np.exp(tw.astype(np.float64)) * w
-        h1 = np.exp(th.astype(np.float64)) * h
-        x1 = cx1 - w1/2.
-        y1 = cy1 - h1/2.
-
-        x1 = np.round(x1)
-        y1 = np.round(y1)
-        w1 = np.round(w1)
-        h1 = np.round(h1)
-        return np.stack([x1, y1, w1, h1])
-    except Exception as e:
-        print(e)
-        return X
-    
 def apply_regr(x, y, w, h, tx, ty, tw, th):
     # Apply regression to x, y, w and h
     try:
@@ -491,76 +450,98 @@ def calc_iou(R, img_data, C, class_mapping):
 
 
 
+def apply_regr_np(X, T):
+    """Apply regression layer to all anchors in one feature map
+
+    Args:
+        X: shape=(b, 4, h, w) the current anchor type for all points in the feature map
+        T: regression layer shape=(b, 4, h, w)
+
+    Returns:
+        X: regressed position and size for current anchor
+    """
+    x = X[:,0, :, :]
+    y = X[:,1, :, :]
+    w = X[:,2, :, :]
+    h = X[:,3, :, :]
+
+    tx = T[:,0, :, :]
+    ty = T[:,1, :, :]
+    tw = T[:,2, :, :]
+    th = T[:,3, :, :]
+
+    cx = x + w/2.
+    cy = y + h/2.
+    cx1 = tx * w + cx
+    cy1 = ty * h + cy
+
+    w1 = torch.exp(tw) * w
+    h1 = torch.exp(th) * h
+    x1 = cx1 - w1/2
+    y1 = cy1 - h1/2
+
+    x1 = x1.round()
+    y1 = y1.round()
+    w1 = w1.round()
+    h1 = h1.round()
+    return torch.stack([x1, y1, w1, h1],1)
+    
 
 
-def rpn_to_roi(cls_k, reg_k, no_anchors,  use_regr=True, max_boxes=500, overlap_thresh=0.9 , std_scaling=4.0 ):
+
+def rpn_to_roi(cls_k, reg_k, no_anchors,  use_regr=True, max_boxes=500, overlap_thresh=0.9 , std_scaling=4.0 , all_possible_anchor_boxes=None ):
 	"""
 	Returns:
 		result: boxes from non-max-suppression (shape=(max_boxes, 4))
 			boxes: coordinates for bboxes (on the feature map)
 	"""
-	
 	reg_k = reg_k / std_scaling
-	curr_layer = 0
+	# all_possible_anchor_boxes : torch.Size([4, 50, 38, 9])
 
-	# A.shape = (4, feature_map.height, feature_map.width, num_anchors) 
-	# Might be (4, 18, 25, 18) if resized image is 400 width and 300
-	# A is the coordinates for 9 anchors for every point in the feature map 
-	# => all 18x25x9=4050 anchors cooridnates
-	for curr_layer in no_anchors: 	
-			# curr_layer: 0~8 (9 anchors)
+	for k in range(no_anchors): #current anchor box  	
 			# the Kth anchor of all position in the feature map (9th in total)
-			regr = regr_layer[0, :, :, 4 * curr_layer:4 * curr_layer + 4] # shape => (18, 25, 4)
-			regr = np.transpose(regr, (2, 0, 1)) # shape => (4, 18, 25)
-
-			# Create 18x25 mesh grid
-			# For every point in x, there are all the y points and vice versa
-			# X.shape = (18, 25)
-			# Y.shape = (18, 25)
-			
-
-			
-			# Apply regression to x, y, w and h if there is rpn regression layer
+			regr = reg_k[:, :, :, 4 * k:4 * k + 4] # shape => (b, h , w, 4)
+			regr = regr.permute(0,3,1,2)
+						
 			if use_regr:
-				A[:, :, :, curr_layer] = apply_regr_np(A[:, :, :, curr_layer], regr)
+				all_possible_anchor_boxes[:, :, :, :, k] = apply_regr_np(all_possible_anchor_boxes[:, :, :, :, k], regr)
 
 			# Avoid width and height exceeding 1
-			A[2, :, :, curr_layer] = np.maximum(1, A[2, :, :, curr_layer])
-			A[3, :, :, curr_layer] = np.maximum(1, A[3, :, :, curr_layer])
+			all_possible_anchor_boxes[:,2, :, :, k].clamp(max=1.0) 
+			all_possible_anchor_boxes[:,3, :, :, k].clamp(max=1.0) 
 
-			# Convert (x, y , w, h) to (x1, y1, x2, y2)
-			# x1, y1 is top left coordinate
-			# x2, y2 is bottom right coordinate
-			A[2, :, :, curr_layer] += A[0, :, :, curr_layer]
-			A[3, :, :, curr_layer] += A[1, :, :, curr_layer]
+			# Convert (x, y , w, h) to (x1, y1, x2 (x1 + w ), y2 (y1 + h))
+			all_possible_anchor_boxes[:,2, :, :, k] += A[:,0, :, :, k]
+			all_possible_anchor_boxes[:,3, :, :, k] += A[:,1, :, :, k]
 
 			# Avoid bboxes drawn outside the feature map
-			A[0, :, :, curr_layer] = np.maximum(0, A[0, :, :, curr_layer])
-			A[1, :, :, curr_layer] = np.maximum(0, A[1, :, :, curr_layer])
-			A[2, :, :, curr_layer] = np.minimum(cols-1, A[2, :, :, curr_layer])
-			A[3, :, :, curr_layer] = np.minimum(rows-1, A[3, :, :, curr_layer])
+			all_possible_anchor_boxes[:,0, :, :, k].clamp(min=0)
+			all_possible_anchor_boxes[:,1, :, :, k].clamp(min=0)
+			all_possible_anchor_boxes[:,2, :, :, k].clamp(min=0)
+			all_possible_anchor_boxes[:,3, :, :, k].clamp(min=0)
 
-			curr_layer += 1
+	return all_possible_anchor_boxes
+	# all_boxes = np.reshape(A.transpose((0, 3, 1, 2)), (4, -1)).transpose((1, 0))  # shape=(4050, 4)
+	# all_probs = rpn_layer.transpose((0, 3, 1, 2)).reshape((-1))                   # shape=(4050,)
 
-	all_boxes = np.reshape(A.transpose((0, 3, 1, 2)), (4, -1)).transpose((1, 0))  # shape=(4050, 4)
-	all_probs = rpn_layer.transpose((0, 3, 1, 2)).reshape((-1))                   # shape=(4050,)
+	# cls_k.permute(0,)
 
-	x1 = all_boxes[:, 0]
-	y1 = all_boxes[:, 1]
-	x2 = all_boxes[:, 2]
-	y2 = all_boxes[:, 3]
+	# x1 = all_boxes[:, 0]
+	# y1 = all_boxes[:, 1]
+	# x2 = all_boxes[:, 2]
+	# y2 = all_boxes[:, 3]
 
-	# Find out the bboxes which is illegal and delete them from bboxes list
-	idxs = np.where((x1 - x2 >= 0) | (y1 - y2 >= 0))
+	# # Find out the bboxes which is illegal and delete them from bboxes list
+	# idxs = np.where((x1 - x2 >= 0) | (y1 - y2 >= 0))
 
-	all_boxes = np.delete(all_boxes, idxs, 0)
-	all_probs = np.delete(all_probs, idxs, 0)
+	# all_boxes = np.delete(all_boxes, idxs, 0)
+	# all_probs = np.delete(all_probs, idxs, 0)
 
-	# Apply non_max_suppression
-	# Only extract the bboxes. Don't need rpn probs in the later process
-	result = non_max_suppression_fast(all_boxes, all_probs, overlap_thresh=overlap_thresh, max_boxes=max_boxes)[0]
+	# # Apply non_max_suppression
+	# # Only extract the bboxes. Don't need rpn probs in the later process
+	# result = non_max_suppression_fast(all_boxes, all_probs, overlap_thresh=overlap_thresh, max_boxes=max_boxes)[0]
 
-	return result
+	# return result
 
 
 

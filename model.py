@@ -15,14 +15,11 @@ class Model_RPN(nn.Module):
         resnet50.layer4[0].downsample[0].stride = (1,1)
         self.base = nn.Sequential(*list(resnet50.children())[:-2])
 
-
         self.num_anchors = num_anchors 
 
         self.feat_dim = 2048
         self.middle_dim = self.feat_dim  // 4
         
-        
-
         self.rpn_c1 = nn.Conv2d(self.feat_dim, self.middle_dim, 3 , padding=1 )
         self.relu1 = nn.ReLU()
 

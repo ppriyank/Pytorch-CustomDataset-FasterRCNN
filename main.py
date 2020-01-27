@@ -19,6 +19,10 @@ from tools import *
 from dataset import Dataset , collate_fn
 import torchvision.transforms as transforms
 
+from torch.autograd import Variable
+from loss import rpn_loss_regr , rpn_loss_cls_fixed_num 
+
+
 class Config(object):
     """docstring for config"""
     def __init__(self):
@@ -134,105 +138,19 @@ test_loader = DataLoader(
 
 model_rpn = Model_RPN(num_anchors= len(anchor_sizes) * len(anchor_ratios) )
 
+all_possible_anchor_boxes = default_anchors(out_h=50, out_w=38, anchor_sizes=anchor_sizes , anchor_ratios=anchor_ratios , downscale=16)
+all_possible_anchor_boxes_tensor = torch.tensor(all_possible_anchor_boxes)
+all_possible_anchor_boxes_tensor = all_possible_anchor_boxes_tensor.unsqueeze(0).repeat(args.train_batch, 1,1,1,1)
+# torch.Size([b, 4, 50, 38, 9])
 
 
-# temp = next(iter(dataset_train))
-# sanity check 
-# list(train_loader)
+for i,(image, boxes, labels , temp, num_pos) in enumerate(train_loader):
+            break
 
-lambda_rpn_regr = 1.0
-lambda_rpn_class = 1.0
-
-lambda_cls_regr = 1.0
-lambda_cls_class = 1.0
-
-epsilon = 1e-4
-
-num_rois = 4 # Number of RoIs to process at once.
+y_is_box_label = temp[0]
+y_rpn_regr = temp[1]
 
 
-
-
-
-optimizer_classifier = torch.optim.Adam(classifier_params)
-
-optimizer_classifier = torch.optim.Adam(classifier_params)
-
-
-model_rpn.compile(optimizer=optimizer, loss=[rpn_loss_cls(num_anchors), rpn_loss_regr(num_anchors)])
-model_classifier.compile(optimizer=optimizer_classifier, loss=[class_loss_cls, class_loss_regr(len(classes_count)-1)], metrics={'dense_class_{}'.format(len(classes_count)): 'accuracy'})
-model_all.compile(optimizer='sgd', loss='mae')
-
-
-
-
-total_epochs = 100
-r_epochs = 100
-
-epoch_length = 1000
-num_epochs = 40
-iter_num = 0
-
-total_epochs += num_epochs
-
-losses = np.zeros((epoch_length, 5))
-rpn_accuracy_rpn_monitor = []
-rpn_accuracy_for_epoch = []
-
-if len(record_df)==0:
-    best_loss = np.Inf
-else:
-    best_loss = np.min(r_curr_loss)
-
-
-
-
-
-
-# with open('image.pickle', 'wb') as handle:
-#     pickle.dump(list(image.numpy()), handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-# with open('boxes.pickle', 'wb') as handle:
-#     pickle.dump( list(boxes[0].numpy())  , handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-# with open('labels.pickle', 'wb') as handle:
-#     pickle.dump( list(labels[0].numpy())  , handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-# with open('y_rpn_regr.pickle', 'wb') as handle:
-#     pickle.dump( list(y_rpn_regr.numpy())  , handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-# with open('y_is_box_label.pickle', 'wb') as handle:
-#     pickle.dump( list(y_is_box_label.numpy())  , handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-
-with open('image.pickle', 'rb') as handle:
-    image = pickle.load(handle)
-
-
-with open('boxes.pickle', 'rb') as handle:
-    boxes = pickle.load(handle)
-
-with open('labels.pickle', 'rb') as handle:
-    labels = pickle.load(handle)
-
-with open('y_is_box_label.pickle', 'rb') as handle:
-    y_is_box_label = pickle.load(handle)
-
-with open('y_rpn_regr.pickle', 'rb') as handle:
-    y_rpn_regr = pickle.load(handle)
-
-
-image = torch.tensor(image)
-boxes = torch.tensor(boxes)
-labels = torch.tensor(labels)
-y_is_box_label = torch.tensor(y_is_box_label)
-y_rpn_regr = torch.tensor(y_rpn_regr)
-
-y_is_box_label = y_is_box_label.squeeze(0)
-y_rpn_regr = y_rpn_regr.squeeze(0)
-num_pos = 31
-
-from torch.autograd import Variable
 image = Variable(image)
 
 
@@ -249,7 +167,7 @@ for key, value in model_rpn.named_parameters():
 optimizer_model_rpn = torch.optim.Adam(params_rpn)
 base_x , cls_k , reg_k = model_rpn(image)
 
-from loss import rpn_loss_regr , rpn_loss_cls_fixed_num 
+
 l1 = rpn_loss_regr(y_true=y_rpn_regr, y_pred=reg_k , y_is_box_label=y_is_box_label)
 l2 = rpn_loss_cls_fixed_num(y_pred = cls_k , y_is_box_label= y_is_box_label)
 
@@ -261,6 +179,7 @@ optimizer_model_rpn.step()
 with torch.no_grad():
     base_x , cls_k , reg_k = model_rpn(image)
 
+rpn_to_roi(cls_k, reg_k, no_anchors=num_anchors,  all_possible_anchor_boxes=all_possible_anchor_boxes_tensor.clone() )
 
 # Convert rpn layer to roi bboxes
 # cls_k.shape : b, h, w, 9
@@ -406,5 +325,106 @@ for epoch_num in range(num_epochs):
             break
 
 print('Training complete, exiting.')
+
+
+
+
+
+# temp = next(iter(dataset_train))
+# sanity check 
+# list(train_loader)
+
+lambda_rpn_regr = 1.0
+lambda_rpn_class = 1.0
+
+lambda_cls_regr = 1.0
+lambda_cls_class = 1.0
+
+epsilon = 1e-4
+
+num_rois = 4 # Number of RoIs to process at once.
+
+
+
+
+
+optimizer_classifier = torch.optim.Adam(classifier_params)
+
+optimizer_classifier = torch.optim.Adam(classifier_params)
+
+
+model_rpn.compile(optimizer=optimizer, loss=[rpn_loss_cls(num_anchors), rpn_loss_regr(num_anchors)])
+model_classifier.compile(optimizer=optimizer_classifier, loss=[class_loss_cls, class_loss_regr(len(classes_count)-1)], metrics={'dense_class_{}'.format(len(classes_count)): 'accuracy'})
+model_all.compile(optimizer='sgd', loss='mae')
+
+
+
+
+total_epochs = 100
+r_epochs = 100
+
+epoch_length = 1000
+num_epochs = 40
+iter_num = 0
+
+total_epochs += num_epochs
+
+losses = np.zeros((epoch_length, 5))
+rpn_accuracy_rpn_monitor = []
+rpn_accuracy_for_epoch = []
+
+if len(record_df)==0:
+    best_loss = np.Inf
+else:
+    best_loss = np.min(r_curr_loss)
+
+
+
+
+
+
+# with open('image.pickle', 'wb') as handle:
+#     pickle.dump(list(image.numpy()), handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+# with open('boxes.pickle', 'wb') as handle:
+#     pickle.dump( list(boxes[0].numpy())  , handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+# with open('labels.pickle', 'wb') as handle:
+#     pickle.dump( list(labels[0].numpy())  , handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+# with open('y_rpn_regr.pickle', 'wb') as handle:
+#     pickle.dump( list(y_rpn_regr.numpy())  , handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+# with open('y_is_box_label.pickle', 'wb') as handle:
+#     pickle.dump( list(y_is_box_label.numpy())  , handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+
+with open('image.pickle', 'rb') as handle:
+    image = pickle.load(handle)
+
+
+with open('boxes.pickle', 'rb') as handle:
+    boxes = pickle.load(handle)
+
+with open('labels.pickle', 'rb') as handle:
+    labels = pickle.load(handle)
+
+with open('y_is_box_label.pickle', 'rb') as handle:
+    y_is_box_label = pickle.load(handle)
+
+with open('y_rpn_regr.pickle', 'rb') as handle:
+    y_rpn_regr = pickle.load(handle)
+
+
+image = torch.tensor(image)
+boxes = torch.tensor(boxes)
+labels = torch.tensor(labels)
+y_is_box_label = torch.tensor(y_is_box_label)
+y_rpn_regr = torch.tensor(y_rpn_regr)
+
+y_is_box_label = y_is_box_label.squeeze(0)
+y_rpn_regr = y_rpn_regr.squeeze(0)
+num_pos = 31
+
 
 
