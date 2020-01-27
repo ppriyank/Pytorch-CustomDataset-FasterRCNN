@@ -9,10 +9,7 @@ Shaoqing Ren, Kaiming He, Ross Girshick, Jian Sun
 
 
 ### Todo :
-- [ ] classification layer
-- [ ] RoiPoolingConv
 - [ ] saving model and loading model
-- [ ] image transformation with respect to bounding box 
 - [ ] class loss
 - [ ] non_max_suppression_fast
 - [ ] credits 

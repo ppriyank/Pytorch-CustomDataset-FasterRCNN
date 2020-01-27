@@ -38,7 +38,7 @@ config = Config()
 
 
 parser = argparse.ArgumentParser(description='Faster RCNN (Custom Dataset)')
-parser.add_argument('--train-batch', default=1, type=int,
+parser.add_argument('--train-batch', default=2, type=int,
                     help="train batch size")
 
 parser.add_argument('--workers', default=8, type=int,
@@ -136,7 +136,7 @@ model_rpn = Model_RPN(num_anchors= len(anchor_sizes) * len(anchor_ratios) )
 
 
 
-
+# temp = next(iter(dataset_train))
 # sanity check 
 # list(train_loader)
 
@@ -154,17 +154,6 @@ num_rois = 4 # Number of RoIs to process at once.
 
 
 
-base_learning_rate =  0.00035
-params = []
-for key, value in model.named_parameters():
-    if not value.requires_grad:
-        continue
-    lr = base_learning_rate
-    params += [{"params": [value], "lr": lr, "weight_decay": weight_decay}]
-
-
-
-optimizer_model = torch.optim.Adam(model_params)
 optimizer_classifier = torch.optim.Adam(classifier_params)
 
 optimizer_classifier = torch.optim.Adam(classifier_params)
@@ -237,12 +226,42 @@ image = torch.tensor(image)
 boxes = torch.tensor(boxes)
 labels = torch.tensor(labels)
 y_is_box_label = torch.tensor(y_is_box_label)
+y_rpn_regr = torch.tensor(y_rpn_regr)
+
+y_is_box_label = y_is_box_label.squeeze(0)
+y_rpn_regr = y_rpn_regr.squeeze(0)
 num_pos = 31
 
+from torch.autograd import Variable
+image = Variable(image)
 
-model_rpn()
+
+weight_decay = 0.0005
+base_learning_rate =  0.0035
+params_rpn = []
+for key, value in model_rpn.named_parameters():
+    if not value.requires_grad:
+        continue
+    lr = base_learning_rate
+    params_rpn += [{"params": [value], "lr": lr, "weight_decay": weight_decay}]
 
 
+optimizer_model_rpn = torch.optim.Adam(params_rpn)
+base_x , cls_k , reg_k = model_rpn(image)
+
+from loss import rpn_loss_regr , rpn_loss_cls_fixed_num 
+l1 = rpn_loss_regr(y_true=y_rpn_regr, y_pred=reg_k , y_is_box_label=y_is_box_label)
+l2 = rpn_loss_cls_fixed_num(y_pred = cls_k , y_is_box_label= y_is_box_label)
+
+loss = l1 + l2 
+optimizer_model_rpn.zero_grad()
+loss.backward()
+optimizer_model_rpn.step()
+
+with torch.no_grad():
+    base_x , cls_k , reg_k = model_rpn(image)
+
+# Convert rpn layer to roi bboxes
 
 
 
@@ -263,15 +282,6 @@ for epoch_num in range(num_epochs):
         y_is_box_label = temp[0]
         y_rpn_regr = temp[1]
 
-
-        # Train rpn model and get loss value [_, loss_rpn_cls, loss_rpn_regr]
-        loss_rpn = model_rpn.train_on_batch(X, Y)
-
-        # Get predicted rpn from rpn model [rpn_cls, rpn_regr]
-        P_rpn = model_rpn.predict_on_batch(X)
-
-        # R: bboxes (shape=(300,4))
-        # Convert rpn layer to roi bboxes
         R = rpn_to_roi(P_rpn[0], P_rpn[1], C, K.image_dim_ordering(), use_regr=True, overlap_thresh=0.7, max_boxes=300)
         
         # note: calc_iou converts from (x1,y1,x2,y2) to (x,y,w,h) format

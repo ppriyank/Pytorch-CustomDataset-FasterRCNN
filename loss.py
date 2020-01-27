@@ -11,7 +11,7 @@ def rpn_loss_regr(y_true, y_pred , y_is_box_label , lambda_rpn_regr = 1.0):
         # y_true [: , : , : , 36]: 4 values per 9 anchor boxes 
         # y_is_box_label [: , : , : , 9] tilled on the last dimension 4 times. label 1 propogated through all 4 values ,
          # similarly other labels replicated 4 times 
-
+        b = y_true.size(0)
         epsilon = 1e-6
         x = y_true - y_pred
         x_abs = torch.abs(x)
@@ -23,8 +23,9 @@ def rpn_loss_regr(y_true, y_pred , y_is_box_label , lambda_rpn_regr = 1.0):
         # clamp min= 0, removes negative box error
         y_is_box_label = tile(y_is_box_label, -1 , 4 ).clamp(min=0)
 
-        loss = (y_is_box_label * x_abs).sum() / (epsilon + y_is_box_label.sum() )
-        return lambda_rpn_regr * loss 
+        loss = (y_is_box_label * x_abs).view(b,-1).sum(1) / (epsilon + y_is_box_label.view(b,-1).sum(1) )
+        # loss = (y_is_box_label * x_abs).sum() / (epsilon + y_is_box_label.sum() )
+        return lambda_rpn_regr * loss.mean() 
         
 
 
@@ -34,13 +35,13 @@ def rpn_loss_cls_fixed_num(y_pred, y_is_box_label , lambda_rpn_class=1.0):
         # y_pred [: ,: ,: , 9 ]
         # y_is_box_label.clamp(min=0) converts the problem into binary cross entropy : postive label =1, negative & neutral label = 0 
 
-
+        b = y_pred.size(0)
         ce=  nn.BCELoss(reduction='none')
         temp = torch.abs(y_is_box_label)
         epsilon = 1e-6 
         ce_loss = ce(y_pred , y_is_box_label.clamp(min=0))
-        loss = ( temp * ce_loss ).sum()  / ( epsilon + temp.sum())
-        return lambda_rpn_class * loss
+        loss = ( temp * ce_loss ).view(b,-1).sum(1)  / (epsilon + temp.view(b,-1).sum(1))
+        return lambda_rpn_class * loss.mean()
 
 
 def Mean_absolute_Error(y_pred, y_true ):        

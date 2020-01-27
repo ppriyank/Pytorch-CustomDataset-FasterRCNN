@@ -103,8 +103,8 @@ def collate_fn( batch):
         num_pos.append(b[4])
         
     images = torch.stack(images, dim=0)
-    y_is_box_label = torch.stack(y_is_box_label, dim=0)
-    y_rpn_regr = torch.stack(y_rpn_regr, dim=0)
+    y_is_box_label = torch.cat(y_is_box_label, dim=0)
+    y_rpn_regr = torch.cat(y_rpn_regr, dim=0)
 
     return images, boxes, labels , [y_is_box_label, y_rpn_regr] , num_pos
 
