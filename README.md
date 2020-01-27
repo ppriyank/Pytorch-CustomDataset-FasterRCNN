@@ -18,6 +18,8 @@ Shaoqing Ren, Kaiming He, Ross Girshick, Jian Sun
 - [ ] parallelize the code ?? : calc_rpn
 - [ ] create parsing json read/write functions
 - [ ] How to run and what changes to make ?? 
+- [ ] Remove log from tw and th to check if performance changes??
+
 
 
 
@@ -65,6 +67,12 @@ How anchor boxes look like :
 
 ### RPN to ROI
 <img src="https://github.com/ppriyank/Pytorch-CustomDataset-FasterRCNN/blob/master/images/rpn_roi.jpg" width="900">
+ 
+`default_anchors` is the set of (xmin, ymin, width , height ) of all possible anchor boxes on the downscaled output feature space of base model (e.g. for 800x600 image => downscaled output feature space is 50 x 38 ).  *all_possible_anchor_boxes[:,**i**,j, k]* and *all_possible_anchor_boxes[:,**m**,j, k]* will have the same xmin, width and height but different y_min. Similarly *all_possible_anchor_boxes[:,i,**j**, k]* and *all_possible_anchor_boxes[:,i,**m**, k]* will have same ymin, height and width. 
+
+
+Model predicts : reg_k : (tx, ty, tw, th) : given all the possible anchor boxes, one can estimate the model's predicted anchor boxes (model can't predict coordinates of anchor boxes apprently).
+
 
 ### Model
 

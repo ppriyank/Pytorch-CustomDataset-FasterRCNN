@@ -57,6 +57,33 @@ def valid_anchors(anchor_sizes,anchor_ratios , downscale , output_width , resize
 		
 
 
+def default_anchors(out_h, out_w, anchor_sizes, anchor_ratios, downscale):
+	no_anchors = len(anchor_sizes) * len(anchor_ratios)
+	A = np.zeros((4, out_h, out_w, no_anchors))
+	X, Y = np.meshgrid(np.arange(out_w),np. arange(out_h))
+	curr_layer = 0 
+	for anchor_size in anchor_sizes:
+		for anchor_ratio in anchor_ratios:
+			ratio_square_root = abs(math.sqrt( anchor_ratio ))
+			# downscale transfers real image bounding box to base layer model output 
+			anchor_x = anchor_size * ratio_square_root / downscale
+			anchor_y = anchor_size / ratio_square_root / downscale 
+
+			# Calculate anchor position and size for each feature map point
+			A[0, :, :, curr_layer] = X - anchor_x/2 # Top left x coordinate
+			A[1, :, :, curr_layer] = Y - anchor_y/2 # Top left y coordinate
+			A[2, :, :, curr_layer] = anchor_x       # width of current anchor
+			A[3, :, :, curr_layer] = anchor_y       # height of current anchor
+			curr_layer += 1
+
+	return A 
+			
+
+
+
+
+
+
 
 
 class RPM():
@@ -466,31 +493,21 @@ def calc_iou(R, img_data, C, class_mapping):
 
 
 
-def rpn_to_roi(cls_k, reg_k, anchor_sizes , anchor_ratios , use_regr=True, max_boxes=500, overlap_thresh=0.9 , std_scaling=4.0 ):
+def rpn_to_roi(cls_k, reg_k, no_anchors,  use_regr=True, max_boxes=500, overlap_thresh=0.9 , std_scaling=4.0 ):
 	"""
 	Returns:
 		result: boxes from non-max-suppression (shape=(max_boxes, 4))
 			boxes: coordinates for bboxes (on the feature map)
 	"""
+	
 	reg_k = reg_k / std_scaling
-
-	rows = cls_k.size(1)
-	cols = cls_k.size(2)
 	curr_layer = 0
 
 	# A.shape = (4, feature_map.height, feature_map.width, num_anchors) 
 	# Might be (4, 18, 25, 18) if resized image is 400 width and 300
 	# A is the coordinates for 9 anchors for every point in the feature map 
 	# => all 18x25x9=4050 anchors cooridnates
-	A = np.zeros((4, rpn_layer.shape[1], rpn_layer.shape[2], rpn_layer.shape[3]))
-
-	for anchor_size in anchor_sizes:
-		for anchor_ratio in anchor_ratios:
-			# anchor_x = (128 * 1) / 16 = 8  => width of current anchor
-			# anchor_y = (128 * 2) / 16 = 16 => height of current anchor
-			anchor_x = (anchor_size * anchor_ratio[0])/C.rpn_stride
-			anchor_y = (anchor_size * anchor_ratio[1])/C.rpn_stride
-			
+	for curr_layer in no_anchors: 	
 			# curr_layer: 0~8 (9 anchors)
 			# the Kth anchor of all position in the feature map (9th in total)
 			regr = regr_layer[0, :, :, 4 * curr_layer:4 * curr_layer + 4] # shape => (18, 25, 4)
@@ -500,14 +517,9 @@ def rpn_to_roi(cls_k, reg_k, anchor_sizes , anchor_ratios , use_regr=True, max_b
 			# For every point in x, there are all the y points and vice versa
 			# X.shape = (18, 25)
 			# Y.shape = (18, 25)
-			X, Y = np.meshgrid(np.arange(cols),np. arange(rows))
+			
 
-			# Calculate anchor position and size for each feature map point
-			A[0, :, :, curr_layer] = X - anchor_x/2 # Top left x coordinate
-			A[1, :, :, curr_layer] = Y - anchor_y/2 # Top left y coordinate
-			A[2, :, :, curr_layer] = anchor_x       # width of current anchor
-			A[3, :, :, curr_layer] = anchor_y       # height of current anchor
-
+			
 			# Apply regression to x, y, w and h if there is rpn regression layer
 			if use_regr:
 				A[:, :, :, curr_layer] = apply_regr_np(A[:, :, :, curr_layer], regr)

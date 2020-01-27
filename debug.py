@@ -261,3 +261,26 @@ l1 = rpn_loss_regr(y_true=y_rpn_regr, y_pred=pred , y_is_box_label=y_is_box_labe
 pred = torch.rand(1,10,20,9)
 l2 = rpn_loss_cls_fixed_num(y_pred = pred , y_is_box_label= y_is_box_label)
 
+
+
+
+
+########################################################################################################################################################################################################################
+# default_anchors
+########################################################################################################################################################################################################################
+import math 
+height = 800
+width = 600 
+
+min_dim = min(height, width)
+index = math.floor(math.log(min_dim) /  math.log(2))
+anchor_sizes = [ 2 ** index , 2 ** (index-1) , 2 ** (index-2)]
+anchor_ratios = [1,0.5,2]
+
+from tools import default_anchors 
+all_possible_anchor_boxes = default_anchors(out_h=50, out_w=38, anchor_sizes=anchor_sizes , anchor_ratios=anchor_ratios , downscale=16)
+
+import torch 
+all_possible_anchor_boxes = torch.tensor(all_possible_anchor_boxes)
+
+
