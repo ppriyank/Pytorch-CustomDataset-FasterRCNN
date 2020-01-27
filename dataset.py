@@ -99,7 +99,7 @@ def collate_fn( batch):
         boxes.append(b[1])
         labels.append(b[2])
         y_is_box_label.append(b[3][0])
-        y_rpn_regr.append(b[3][0])
+        y_rpn_regr.append(b[3][1])
         num_pos.append(b[4])
         
     images = torch.stack(images, dim=0)

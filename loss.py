@@ -43,6 +43,12 @@ def rpn_loss_cls_fixed_num(y_pred, y_is_box_label , lambda_rpn_class=1.0):
         return lambda_rpn_class * loss
 
 
+def Mean_absolute_Error(y_pred, y_true ):        
+        return torch.abs(y_pred - y_true).mean()
+
+
+
+
 # class cross entropy
 
 def class_loss_regr(num_classes):
