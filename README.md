@@ -61,3 +61,19 @@ For each ground truth bounding box, highest iou anchor box is kept , along with 
 
 How anchor boxes look like : 
 <img src="https://github.com/ppriyank/Pytorch-CustomDataset-FasterRCNN/blob/master/images/Samples.jpg" width="900">
+
+
+### RPN to ROI
+<img src="https://github.com/ppriyank/Pytorch-CustomDataset-FasterRCNN/blob/master/images/rpn_roi.jpg" width="900">
+
+### Model
+
+##### Model_RPN
+
+It returns 3 tensors : base_x , cls_k , reg_k.   
+**base_x** is the output of base layer (resnet in my case), the vector representation of the image.   
+**cls_k** is the model's prediction corresponding to each anchor box (9 in my case), where the prediction being the probability of anchor being positive anchor (trained via cross entorpy loss). Positive GT anchor box : +1, Negative anchor box= 0. Neutral boxes are ignored. 
+**reg_k** is the regression values corresponding to positive GT anchor boxes. (trained via smooth L1 loss)  
+
+
+##### Classifier
