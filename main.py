@@ -261,7 +261,10 @@ optimizer_model_rpn.step()
 with torch.no_grad():
     base_x , cls_k , reg_k = model_rpn(image)
 
+
 # Convert rpn layer to roi bboxes
+# cls_k.shape : b, h, w, 9
+# reg_k : b, h, w, 36
 
 
 
@@ -282,7 +285,7 @@ for epoch_num in range(num_epochs):
         y_is_box_label = temp[0]
         y_rpn_regr = temp[1]
 
-        R = rpn_to_roi(P_rpn[0], P_rpn[1], C, K.image_dim_ordering(), use_regr=True, overlap_thresh=0.7, max_boxes=300)
+        R = rpn_to_roi(, use_regr=True, overlap_thresh=0.7, max_boxes=300)
         
         # note: calc_iou converts from (x1,y1,x2,y2) to (x,y,w,h) format
         # X2: bboxes that iou > C.classifier_min_overlap for all gt bboxes in 300 non_max_suppression bboxes
