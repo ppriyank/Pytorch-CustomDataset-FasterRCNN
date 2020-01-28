@@ -11,9 +11,10 @@ Shaoqing Ren, Kaiming He, Ross Girshick, Jian Sun
 ### Todo :
 - [ ] saving model and loading model
 - [ ] class loss
-- [ ] non_max_suppression_fast
+- [ ] calc_iou
+- [ ] apply_regr
+- [ ] padding
 - [ ] credits 
-- [ ] rpn_to_roi
 - [ ] training code 
 - [ ] parallelize the code ?? : calc_rpn
 - [ ] create parsing json read/write functions
