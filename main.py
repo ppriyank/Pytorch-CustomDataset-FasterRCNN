@@ -140,8 +140,8 @@ model_rpn = Model_RPN(num_anchors= len(anchor_sizes) * len(anchor_ratios) )
 
 all_possible_anchor_boxes = default_anchors(out_h=50, out_w=38, anchor_sizes=anchor_sizes , anchor_ratios=anchor_ratios , downscale=16)
 all_possible_anchor_boxes_tensor = torch.tensor(all_possible_anchor_boxes)
-all_possible_anchor_boxes_tensor = all_possible_anchor_boxes_tensor.unsqueeze(0).repeat(args.train_batch, 1,1,1,1)
-# torch.Size([b, 4, 50, 38, 9])
+# all_possible_anchor_boxes_tensor = all_possible_anchor_boxes_tensor.unsqueeze(0).repeat(args.train_batch, 1,1,1,1)
+# torch.Size([4, 50, 38, 9])
 
 
 for i,(image, boxes, labels , temp, num_pos) in enumerate(train_loader):
@@ -178,8 +178,17 @@ optimizer_model_rpn.step()
 
 with torch.no_grad():
     base_x , cls_k , reg_k = model_rpn(image)
+    for b in range(args.train_batch):
+        temp = rpn_to_roi(cls_k[b,:], reg_k[b,:], no_anchors=num_anchors,  all_possible_anchor_boxes=all_possible_anchor_boxes_tensor.clone() )
+         
 
-rpn_to_roi(cls_k, reg_k, no_anchors=num_anchors,  all_possible_anchor_boxes=all_possible_anchor_boxes_tensor.clone() )
+cls_k = cls_k[b,:] 
+reg_k = reg_k[b,:] 
+no_anchors=num_anchors
+all_possible_anchor_boxes=all_possible_anchor_boxes_tensor.clone() 
+
+
+
 
 # Convert rpn layer to roi bboxes
 # cls_k.shape : b, h, w, 9
