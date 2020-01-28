@@ -249,6 +249,161 @@ class RPM():
 # https://github.com/RockyXu66/Faster_RCNN_for_Open_Images_Dataset_Keras/blob/master/frcnn_train_vgg.ipynb
 # Reduce the overlapping boxes to 1 
 
+def non_max_suppression_fast(boxes, probs, overlap_thresh=0.9, max_boxes=500):
+    # code used from here: http://www.pyimagesearch.com/2015/02/16/faster-non-maximum-suppression-python/
+    # if there are no boxes, return an empty list
+
+    # Process explanation:
+    #   Step 1: Sort the probs list
+    #   Step 2: Find the larget prob 'Last' in the list and save it to the pick list
+    #   Step 3: Calculate the IoU with 'Last' box and other boxes in the list. If the IoU is larger than overlap_threshold, delete the box from list
+    #   Step 4: Repeat step 2 and step 3 until there is no item in the probs list 
+    if len(boxes) == 0:
+        return []
+
+    # grab the coordinates of the bounding boxes
+    x1 = boxes[:, 0]
+    y1 = boxes[:, 1]
+    x2 = boxes[:, 2]
+    y2 = boxes[:, 3]
+
+    # initialize the list of picked indexes	
+    pick = []
+    # calculate the areas
+    area = (x2 - x1) * (y2 - y1)
+    
+    # sort the bounding boxes 
+    _ , ind = torch.sort(probs)
+    
+    # keep looping while some indexes still remain in the indexes
+    while ind.size(0)  > 0:
+        # grab the last index in the indexes list and add the
+        # index value to the list of picked indexes
+        last = ind.size(0) - 1
+        i = ind[last]
+        pick.append(i)
+
+        # find the intersection
+
+        xx1_int = torch.max(x1[i], x1[ind[:last]])
+        yy1_int = torch.max(y1[i], y1[ind[:last]])
+
+        xx2_int = torch.min(x2[i], x2[ind[:last]])
+        yy2_int = torch.min(y2[i], y2[ind[:last]])
+
+        ww_int = (xx2_int - xx1_int).clamp(min=0)
+        hh_int = (yy2_int - yy1_int).clamp(min=0)
+
+        area_int = ww_int * hh_int
+        
+        # find the union
+        area_union = area[i] + area[ind[:last]] - area_int
+        # compute the ratio of overlap
+        overlap = area_int/(area_union + 1e-6)
+
+        # delete all indexes from the index list that have
+        ind = ind[:-1]
+        ind = ind[overlap < overlap_thresh]
+
+        if len(pick) >= max_boxes:
+            break
+
+    # return only the bounding boxes that were picked using the integer data type
+    boxes = boxes[pick].int()
+    probs = probs[pick]
+    
+    return boxes, probs
+
+
+
+
+def apply_regr_np(X, T):
+    """Apply regression layer to all anchors in one feature map
+
+    Args:
+        X: shape=(b, 4, h, w) the current anchor type for all points in the feature map
+        T: regression layer shape=(b, 4, h, w)
+    Returns:
+        X: regressed position and size for current anchor
+    """
+    x = X[0, :, :]
+    y = X[1, :, :]
+    w = X[2, :, :]
+    h = X[3, :, :]
+
+    tx = T[0, :, :]
+    ty = T[1, :, :]
+    tw = T[2, :, :]
+    th = T[3, :, :]
+
+    cx = x + w/2.
+    cy = y + h/2.
+    cx1 = tx * w + cx
+    cy1 = ty * h + cy
+
+    w1 = torch.exp(tw) * w
+    h1 = torch.exp(th) * h
+    x1 = cx1 - w1/2
+    y1 = cy1 - h1/2
+
+    x1 = x1.round()
+    y1 = y1.round()
+    w1 = w1.round()
+    h1 = h1.round()
+    return torch.stack([x1, y1, w1, h1])
+    
+
+
+
+def rpn_to_roi(cls_k, reg_k, no_anchors,  use_regr=True, max_boxes=300, overlap_thresh=0.9 , std_scaling=4.0 , all_possible_anchor_boxes=None ):
+	"""
+	Returns:
+		result: boxes from non-max-suppression (shape=(max_boxes, 4))
+			boxes: coordinates for bboxes (on the feature map)
+	"""
+	reg_k = reg_k / std_scaling
+	# all_possible_anchor_boxes : torch.Size([4, 50, 38, 9])
+	for k in range(no_anchors): #current anchor box  	
+			# the Kth anchor of all position in the feature map (9th in total)
+			regr = reg_k[ :, :, 4 * k:4 * k + 4] # shape => (h , w, 4)
+			regr = regr.permute(2,0,1) # shape => (4, h , w)
+						
+			if use_regr:
+				all_possible_anchor_boxes[ :, :, :, k] = apply_regr_np(all_possible_anchor_boxes[ :, :, :, k], regr)
+
+			# Avoid width and height exceeding 1
+			all_possible_anchor_boxes[2, :, :, k] = all_possible_anchor_boxes[2, :, :, k].clamp(max=1.0) 
+			all_possible_anchor_boxes[3, :, :, k] = all_possible_anchor_boxes[3, :, :, k].clamp(max=1.0) 
+
+			# Convert (x, y , w, h) to (x1, y1, x2 (x1 + w ), y2 (y1 + h))
+			all_possible_anchor_boxes[2, :, :, k] += all_possible_anchor_boxes[0, :, :, k]
+			all_possible_anchor_boxes[3, :, :, k] += all_possible_anchor_boxes[1, :, :, k]
+
+			# Avoid bboxes drawn outside the feature map
+			all_possible_anchor_boxes[0, :, :, k] = all_possible_anchor_boxes[0, :, :, k].clamp(min=0)
+			all_possible_anchor_boxes[1, :, :, k] = all_possible_anchor_boxes[1, :, :, k].clamp(min=0)
+			all_possible_anchor_boxes[2, :, :, k] = all_possible_anchor_boxes[2, :, :, k].clamp(min=0)
+			all_possible_anchor_boxes[3, :, :, k] = all_possible_anchor_boxes[3, :, :, k].clamp(min=0)
+
+
+	all_boxes = all_possible_anchor_boxes.permute(0,3,1,2).reshape(4,-1).permute(1,0)
+	all_probs = cls_k.permute(2,0,1).reshape(-1)
+
+	
+	id1 = (all_boxes[:, 0] - all_boxes[:, 2] < 0)
+	all_boxes = all_boxes[id1]
+	all_probs = all_probs[id1]
+	
+	id1 = (all_boxes[:, 1] - all_boxes[:, 3] < 0)
+	all_boxes = all_boxes[id1]
+	all_probs = all_probs[id1]
+
+	return non_max_suppression_fast(all_boxes, all_probs, overlap_thresh=overlap_thresh, max_boxes=max_boxes)[0]
+
+	
+
+
+
 
 
 def apply_regr(x, y, w, h, tx, ty, tw, th):
@@ -382,157 +537,5 @@ def calc_iou(R, img_data, C, class_mapping):
 
 
 
-def non_max_suppression_fast(boxes, probs, overlap_thresh=0.9, max_boxes=500):
-    # code used from here: http://www.pyimagesearch.com/2015/02/16/faster-non-maximum-suppression-python/
-    # if there are no boxes, return an empty list
-
-    # Process explanation:
-    #   Step 1: Sort the probs list
-    #   Step 2: Find the larget prob 'Last' in the list and save it to the pick list
-    #   Step 3: Calculate the IoU with 'Last' box and other boxes in the list. If the IoU is larger than overlap_threshold, delete the box from list
-    #   Step 4: Repeat step 2 and step 3 until there is no item in the probs list 
-    if len(boxes) == 0:
-        return []
-
-    # grab the coordinates of the bounding boxes
-    x1 = boxes[:, 0]
-    y1 = boxes[:, 1]
-    x2 = boxes[:, 2]
-    y2 = boxes[:, 3]
-
-    # initialize the list of picked indexes	
-    pick = []
-    # calculate the areas
-    area = (x2 - x1) * (y2 - y1)
-    
-    # sort the bounding boxes 
-    _ , ind = torch.sort(probs)
-    
-    # keep looping while some indexes still remain in the indexes
-    
-    while len(idxs) > 0:
-        # grab the last index in the indexes list and add the
-        # index value to the list of picked indexes
-        last = len(idxs) - 1
-        i = idxs[last]
-        pick.append(i)
-
-        # find the intersection
-
-        xx1_int = np.maximum(x1[i], x1[idxs[:last]])
-        yy1_int = np.maximum(y1[i], y1[idxs[:last]])
-        xx2_int = np.minimum(x2[i], x2[idxs[:last]])
-        yy2_int = np.minimum(y2[i], y2[idxs[:last]])
-
-        ww_int = np.maximum(0, xx2_int - xx1_int)
-        hh_int = np.maximum(0, yy2_int - yy1_int)
-
-        area_int = ww_int * hh_int
-
-        # find the union
-        area_union = area[i] + area[idxs[:last]] - area_int
-
-        # compute the ratio of overlap
-        overlap = area_int/(area_union + 1e-6)
-
-        # delete all indexes from the index list that have
-        idxs = np.delete(idxs, np.concatenate(([last],
-            np.where(overlap > overlap_thresh)[0])))
-
-        if len(pick) >= max_boxes:
-            break
-
-    # return only the bounding boxes that were picked using the integer data type
-    boxes = boxes[pick].astype("int")
-    probs = probs[pick]
-    return boxes, probs
-
-
-
-
-def apply_regr_np(X, T):
-    """Apply regression layer to all anchors in one feature map
-
-    Args:
-        X: shape=(b, 4, h, w) the current anchor type for all points in the feature map
-        T: regression layer shape=(b, 4, h, w)
-    Returns:
-        X: regressed position and size for current anchor
-    """
-    x = X[0, :, :]
-    y = X[1, :, :]
-    w = X[2, :, :]
-    h = X[3, :, :]
-
-    tx = T[0, :, :]
-    ty = T[1, :, :]
-    tw = T[2, :, :]
-    th = T[3, :, :]
-
-    cx = x + w/2.
-    cy = y + h/2.
-    cx1 = tx * w + cx
-    cy1 = ty * h + cy
-
-    w1 = torch.exp(tw) * w
-    h1 = torch.exp(th) * h
-    x1 = cx1 - w1/2
-    y1 = cy1 - h1/2
-
-    x1 = x1.round()
-    y1 = y1.round()
-    w1 = w1.round()
-    h1 = h1.round()
-    return torch.stack([x1, y1, w1, h1])
-    
-
-
-
-def rpn_to_roi(cls_k, reg_k, no_anchors,  use_regr=True, max_boxes=300, overlap_thresh=0.9 , std_scaling=4.0 , all_possible_anchor_boxes=None ):
-	"""
-	Returns:
-		result: boxes from non-max-suppression (shape=(max_boxes, 4))
-			boxes: coordinates for bboxes (on the feature map)
-	"""
-	reg_k = reg_k / std_scaling
-	# all_possible_anchor_boxes : torch.Size([4, 50, 38, 9])
-	for k in range(no_anchors): #current anchor box  	
-			# the Kth anchor of all position in the feature map (9th in total)
-			regr = reg_k[ :, :, 4 * k:4 * k + 4] # shape => (h , w, 4)
-			regr = regr.permute(2,0,1) # shape => (4, h , w)
-						
-			if use_regr:
-				all_possible_anchor_boxes[ :, :, :, k] = apply_regr_np(all_possible_anchor_boxes[ :, :, :, k], regr)
-
-			# Avoid width and height exceeding 1
-			all_possible_anchor_boxes[2, :, :, k] = all_possible_anchor_boxes[2, :, :, k].clamp(max=1.0) 
-			all_possible_anchor_boxes[3, :, :, k] = all_possible_anchor_boxes[3, :, :, k].clamp(max=1.0) 
-
-			# Convert (x, y , w, h) to (x1, y1, x2 (x1 + w ), y2 (y1 + h))
-			all_possible_anchor_boxes[2, :, :, k] += all_possible_anchor_boxes[0, :, :, k]
-			all_possible_anchor_boxes[3, :, :, k] += all_possible_anchor_boxes[1, :, :, k]
-
-			# Avoid bboxes drawn outside the feature map
-			all_possible_anchor_boxes[0, :, :, k] = all_possible_anchor_boxes[0, :, :, k].clamp(min=0)
-			all_possible_anchor_boxes[1, :, :, k] = all_possible_anchor_boxes[1, :, :, k].clamp(min=0)
-			all_possible_anchor_boxes[2, :, :, k] = all_possible_anchor_boxes[2, :, :, k].clamp(min=0)
-			all_possible_anchor_boxes[3, :, :, k] = all_possible_anchor_boxes[3, :, :, k].clamp(min=0)
-
-
-	all_boxes = all_possible_anchor_boxes.permute(0,3,1,2).reshape(4,-1).permute(1,0)
-	all_probs = cls_k.permute(2,0,1).reshape(-1)
-
-	
-	id1 = (all_boxes[:, 0] - all_boxes[:, 2] < 0)
-	all_boxes = all_boxes[id1]
-	all_probs = all_probs[id1]
-	
-	id1 = (all_boxes[:, 1] - all_boxes[:, 3] < 0)
-	all_boxes = all_boxes[id1]
-	all_probs = all_probs[id1]
-
-	return non_max_suppression_fast(all_boxes, all_probs, overlap_thresh=overlap_thresh, max_boxes=max_boxes)[0]
-
-	
 
 

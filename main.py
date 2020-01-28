@@ -180,13 +180,18 @@ with torch.no_grad():
     base_x , cls_k , reg_k = model_rpn(image)
     for b in range(args.train_batch):
         temp = rpn_to_roi(cls_k[b,:], reg_k[b,:], no_anchors=num_anchors,  all_possible_anchor_boxes=all_possible_anchor_boxes_tensor.clone() )
+        # can't concatenate batch 
+        # no of boxes may vary across the batch 
+
+        # note: calc_iou converts from (x1,y1,x2,y2) to (x,y,w,h) format
+        # X2: bboxes that iou > C.classifier_min_overlap for all gt bboxes in 300 non_max_suppression bboxes
+        # Y1: one hot code for bboxes from above => x_roi (X)
+        # Y2: corresponding labels and corresponding gt bboxes
+        X2, Y1, Y2, IouS = calc_iou(R, img_data, C, class_mapping)
+
+
+
          
-
-cls_k = cls_k[b,:] 
-reg_k = reg_k[b,:] 
-no_anchors=num_anchors
-all_possible_anchor_boxes=all_possible_anchor_boxes_tensor.clone() 
-
 
 
 
@@ -213,14 +218,9 @@ for epoch_num in range(num_epochs):
         y_is_box_label = temp[0]
         y_rpn_regr = temp[1]
 
-        R = rpn_to_roi(, use_regr=True, overlap_thresh=0.7, max_boxes=300)
         
-        # note: calc_iou converts from (x1,y1,x2,y2) to (x,y,w,h) format
-        # X2: bboxes that iou > C.classifier_min_overlap for all gt bboxes in 300 non_max_suppression bboxes
-        # Y1: one hot code for bboxes from above => x_roi (X)
-        # Y2: corresponding labels and corresponding gt bboxes
-        X2, Y1, Y2, IouS = calc_iou(R, img_data, C, class_mapping)
-
+        
+        
         # If X2 is None means there are no matching bboxes
         if X2 is None:
             rpn_accuracy_rpn_monitor.append(0)
