@@ -432,61 +432,36 @@ def apply_regr(x, y, w, h, tx, ty, tw, th):
         print(e)
         return x, y, w, h
 
-def calc_iou(R, img_data, C, class_mapping):
+def calc_iou(rpn_rois, img_data, C, class_mapping , classifier_min_overlap=0.1 ):
     """Converts from (x1,y1,x2,y2) to (x,y,w,h) format
 
     Args:
         R: bboxes, probs
     """
-    bboxes = img_data['bboxes']
-    (width, height) = (img_data['width'], img_data['height'])
-    # get image dimensions for resizing
-    (resized_width, resized_height) = get_new_img_size(width, height, C.im_size)
-
-    gta = np.zeros((len(bboxes), 4))
-
-    for bbox_num, bbox in enumerate(bboxes):
-        # get the GT box coordinates, and resize to account for image resizing
-        # gta[bbox_num, 0] = (40 * (600 / 800)) / 16 = int(round(1.875)) = 2 (x in feature map)
-        gta[bbox_num, 0] = int(round(bbox['x1'] * (resized_width / float(width))/C.rpn_stride))
-        gta[bbox_num, 1] = int(round(bbox['x2'] * (resized_width / float(width))/C.rpn_stride))
-        gta[bbox_num, 2] = int(round(bbox['y1'] * (resized_height / float(height))/C.rpn_stride))
-        gta[bbox_num, 3] = int(round(bbox['y2'] * (resized_height / float(height))/C.rpn_stride))
-
+    boxes = img_data['boxes'].int()
+    
+   
     x_roi = []
     y_class_num = []
     y_class_regr_coords = []
     y_class_regr_label = []
-    IoUs = [] # for debugging only
+    
 
     # R.shape[0]: number of bboxes (=300 from non_max_suppression)
-    for ix in range(R.shape[0]):
-        (x1, y1, x2, y2) = R[ix, :]
-        x1 = int(round(x1))
-        y1 = int(round(y1))
-        x2 = int(round(x2))
-        y2 = int(round(y2))
-
+    for i in range(rpn_rois.size(0)):
+        (x1, y1, x2, y2) = rpn_rois[i]
         best_iou = 0.0
-        best_bbox = -1
-        # Iterate through all the ground-truth bboxes to calculate the iou
-        for bbox_num in range(len(bboxes)):
-            curr_iou = iou([gta[bbox_num, 0], gta[bbox_num, 2], gta[bbox_num, 1], gta[bbox_num, 3]], [x1, y1, x2, y2])
-
-            # Find out the corresponding ground-truth bbox_num with larget iou
-            if curr_iou > best_iou:
-                best_iou = curr_iou
-                best_bbox = bbox_num
-
-        if best_iou < C.classifier_min_overlap:
-                continue
+        best_box = -1
+        
+        best_iou , best_bbox = iou_tensor(x1, y1, x2, y2, boxes)
+        if best_bbox == -1 or best_iou < classifier_min_overlap :
+        	continue 
         else:
             w = x2 - x1
             h = y2 - y1
             x_roi.append([x1, y1, w, h])
-            IoUs.append(best_iou)
-
-            if C.classifier_min_overlap <= best_iou < C.classifier_max_overlap:
+            
+            if classifier_min_overlap <= best_iou and best_iou < C.classifier_max_overlap:
                 # hard negative example
                 cls_name = 'bg'
             elif C.classifier_max_overlap <= best_iou:

@@ -178,10 +178,16 @@ optimizer_model_rpn.step()
 
 with torch.no_grad():
     base_x , cls_k , reg_k = model_rpn(image)
+    img_data = {}
     for b in range(args.train_batch):
-        temp = rpn_to_roi(cls_k[b,:], reg_k[b,:], no_anchors=num_anchors,  all_possible_anchor_boxes=all_possible_anchor_boxes_tensor.clone() )
+        rpn_rois = rpn_to_roi(cls_k[b,:], reg_k[b,:], no_anchors=num_anchors,  all_possible_anchor_boxes=all_possible_anchor_boxes_tensor.clone() )
         # can't concatenate batch 
         # no of boxes may vary across the batch 
+        # img_data["image"] = image[b]
+        img_data["boxes"] = boxes[b] // downscale
+        # img_data["labels"] = labels[b]
+
+
 
         # note: calc_iou converts from (x1,y1,x2,y2) to (x,y,w,h) format
         # X2: bboxes that iou > C.classifier_min_overlap for all gt bboxes in 300 non_max_suppression bboxes
@@ -348,6 +354,10 @@ lambda_rpn_class = 1.0
 
 lambda_cls_regr = 1.0
 lambda_cls_class = 1.0
+
+classifier_min_overlap = 0.1
+classifier_max_overlap = 0.5
+
 
 epsilon = 1e-4
 

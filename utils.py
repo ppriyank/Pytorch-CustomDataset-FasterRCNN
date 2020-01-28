@@ -72,3 +72,68 @@ def iou(a, b):
     else:
         return float(intersection) / float(union + 1e-6)
 
+
+
+
+def iou_tensor(x1, y1, x2, y2, boxes):
+        
+    main_ind = torch.arange(0 , boxes.size(0))
+
+    area_1 = (x2 - x1) * (y2 - y1)
+
+    x11 = torch.max(boxes[:,0] , x1)
+    y11 = torch.max(boxes[:,1] , y1)
+    x22 = torch.min(boxes[:,2] , x2)
+    y22 = torch.min(boxes[:,3] , y2)
+
+    intersection = (x22 - x11) * (y22 - y11)
+    ind = x22 - x11 > 0 
+
+    intersection = intersection[ind]
+    y22 = y22[ind]
+    y11 = y11[ind]
+    x22 = x22[ind]
+    x11 = x11[ind]
+    boxes = boxes[ind]
+    main_ind = main_ind[ind]
+
+
+    if intersection.size(0) == 0 : 
+        return 0 , -1
+
+    ind = y22 - y11 > 0
+
+    intersection = intersection[ind]
+    y22 = y22[ind]
+    y11 = y11[ind]
+    x22 = x22[ind]
+    x11 = x11[ind]
+    boxes = boxes[ind]
+    main_ind = main_ind[ind]
+
+    if intersection.size(0) == 0 : 
+        return 0 , -1
+
+
+    area_2 = (boxes[:,2] -  boxes[:,0]) * (boxes[:,3] -  boxes[:,1])
+
+    union = area_1 + area_2 - intersection
+
+    ind = union > 0
+    union = union[ ind ]
+    intersection = union[ ind ]
+    main_ind = main_ind[ind]
+
+    if intersection.size(0) == 0 : 
+        return 0 , -1
+
+
+    iou = intersection / (union + 1e-6)
+    _, ind = iou.sort()
+    
+    return  iou[ind[-1]].numpy() , main_ind[ind[-1]].numpy()
+
+
+
+
+
