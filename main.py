@@ -47,6 +47,9 @@ config = Config()
 parser = argparse.ArgumentParser(description='Faster RCNN (Custom Dataset)')
 parser.add_argument('--train-batch', default=2, type=int,
                     help="train batch size")
+parser.add_argument('--n-roi', type=int, default=20,
+                    help="number of roi to train classifiers with")
+
 
 parser.add_argument('--workers', default=8, type=int,
                     help="# of workers, keep it greater than 4")
@@ -232,20 +235,26 @@ for b in range(args.train_batch):
     neg_samples = torch.where(Y1[:, -1] == 1)[0]
     pos_samples = torch.where(Y1[:, -1] == 0)[0]
     
-    n_pos = pos_samples.size(0)
-    n_neg = neg_samples.size(0)
-
-
+    
     rpn_accuracy_rpn_monitor.append(pos_samples.size(0))
     rpn_accuracy_for_epoch.append(pos_samples.size(0))
 
     db = Dataset_roi(pos=pos_samples , neg= neg_samples)
-    
+    roi_loader = DataLoader(db, shuffle=True,  
+        batch_size=args.n_roi // 2, num_workers=args.workers, pin_memory=pin_memory, drop_last=False)
+
+    for i,j in enumerate(roi_loader):
+        pos = j[0]
+        neg = j[1]
+        if pos == []:
+
+        elif neg == []:
 
 
-        indexes = torch.cat([pos_samples  , neg_samples] )
-        base_x[b].unsqueeze(0) 
 
+
+
+        
         # note: calc_iou converts from (x1,y1,x2,y2) to (x,y,w,h) format
         # X2: bboxes that iou > C.classifier_min_overlap for all gt bboxes in 300 non_max_suppression bboxes
         # Y1: one hot code for bboxes from above => x_roi (X)
@@ -275,31 +284,6 @@ for epoch_num in range(num_epochs):
         
         
         
-        # Find out the positive anchors and negative anchors
-        
-        if C.num_rois > 1:
-            # If number of positive anchors is larger than 4//2 = 2, randomly choose 2 pos samples
-            if len(pos_samples) < C.num_rois//2:
-                selected_pos_samples = pos_samples.tolist()
-            else:
-                selected_pos_samples = np.random.choice(pos_samples, C.num_rois//2, replace=False).tolist()
-            
-            # Randomly choose (num_rois - num_pos) neg samples
-            try:
-                selected_neg_samples = np.random.choice(neg_samples, C.num_rois - len(selected_pos_samples), replace=False).tolist()
-            except:
-                selected_neg_samples = np.random.choice(neg_samples, C.num_rois - len(selected_pos_samples), replace=True).tolist()
-            
-            # Save all the pos and neg samples in sel_samples
-            sel_samples = selected_pos_samples + selected_neg_samples
-        else:
-            # in the extreme case where num_rois = 1, we pick a random pos or neg sample
-            selected_pos_samples = pos_samples.tolist()
-            selected_neg_samples = neg_samples.tolist()
-            if np.random.randint(0, 2):
-                sel_samples = random.choice(neg_samples)
-            else:
-                sel_samples = random.choice(pos_samples)
 
         # training_data: [X, X2[:, sel_samples, :]]
         # labels: [Y1[:, sel_samples, :], Y2[:, sel_samples, :]]
@@ -315,11 +299,8 @@ for epoch_num in range(num_epochs):
         losses[iter_num, 2] = loss_class[1]
         losses[iter_num, 3] = loss_class[2]
         losses[iter_num, 4] = loss_class[3]
-
         iter_num += 1
-
-        progbar.update(iter_num, [('rpn_cls', np.mean(losses[:iter_num, 0])), ('rpn_regr', np.mean(losses[:iter_num, 1])),
-                                  ('final_cls', np.mean(losses[:iter_num, 2])), ('final_regr', np.mean(losses[:iter_num, 3]))])
+        
 
         if iter_num == epoch_length:
             loss_rpn_cls = np.mean(losses[:, 0])

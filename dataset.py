@@ -177,9 +177,8 @@ class Transform(object):
         
 
 
-
 class Dataset_roi(Dataset):
-
+    
     def __init__(self, pos , neg):
         self.pos = pos
         self.neg = neg
@@ -187,10 +186,10 @@ class Dataset_roi(Dataset):
 
     def __getitem__(self, i):
         if self.pos.size(0) == 0: 
-            return self.pos[i] , None 
+            return  [] , self.neg[i] 
 
         elif self.neg.size(0) == 0 : 
-            return None , self.neg[i]  
+            return self.pos[i] , []
 
         else:
             if min(self.pos.size(0) , self.neg.size(0)) == self.pos.size(0):
@@ -203,3 +202,6 @@ class Dataset_roi(Dataset):
 
     def __len__(self):
         return max(self.pos.size(0), self.neg.size(0))
+
+
+
