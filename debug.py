@@ -417,7 +417,7 @@ with torch.no_grad():
     if X2 is None:
         rpn_accuracy_rpn_monitor.append(0)
         rpn_accuracy_for_epoch.append(0)
-        continue
-    neg_samples = torch.where(Y1[:, -1] == 1)[0]
-    pos_samples = torch.where(Y1[:, -1] == 0)
+    else:
+        neg_samples = torch.where(Y1[:, -1] == 1)[0]
+        pos_samples = torch.where(Y1[:, -1] == 0)
     

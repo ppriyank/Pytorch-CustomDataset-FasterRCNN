@@ -15,12 +15,15 @@ from torch.autograd import Variable
 
 from  model import Model_RPN , Classifier
 from tools import * 
+from utils import WarmupMultiStepLR 
 
 from dataset import Dataset , collate_fn
 import torchvision.transforms as transforms
 
 from torch.autograd import Variable
 from loss import rpn_loss_regr , rpn_loss_cls_fixed_num 
+
+
 
 
 class Config(object):
@@ -143,15 +146,27 @@ model_classifier = Classifier(num_classes=  len(config.voc_labels) )
 
 weight_decay = 0.0005
 base_learning_rate =  0.0035
-params_rpn = []
+params_class = []
 for key, value in model_classifier.named_parameters():
+    if not value.requires_grad:
+        continue
+    lr = base_learning_rate
+    params_class += [{"params": [value], "lr": lr, "weight_decay": weight_decay}]
+
+
+params_rpn = []
+for key, value in model_rpn.named_parameters():
     if not value.requires_grad:
         continue
     lr = base_learning_rate
     params_rpn += [{"params": [value], "lr": lr, "weight_decay": weight_decay}]
 
-optimizer_classifier = torch.optim.Adam(params_rpn)
 
+optimizer_model_rpn = torch.optim.Adam(params_rpn)
+optimizer_classifier = torch.optim.Adam(params_class)
+
+scheduler_rpn = WarmupMultiStepLR(optimizer_model_rpn, milestones=[40, 70], gamma=gamma, warmup_factor=0.01, warmup_iters=10)
+scheduler_class = WarmupMultiStepLR(optimizer_classifier, milestones=[40, 70], gamma=gamma, warmup_factor=0.01, warmup_iters=10)
 
 
 
@@ -171,16 +186,6 @@ y_rpn_regr = temp[1]
 image = Variable(image)
 
 
-weight_decay = 0.0005
-base_learning_rate =  0.0035
-params_rpn = []
-for key, value in model_rpn.named_parameters():
-    if not value.requires_grad:
-        continue
-    lr = base_learning_rate
-    params_rpn += [{"params": [value], "lr": lr, "weight_decay": weight_decay}]
-
-optimizer_model_rpn = torch.optim.Adam(params_rpn)
 
 for i in range(25) :
     base_x , cls_k , reg_k = model_rpn(image)
@@ -199,18 +204,23 @@ rpn_accuracy_for_epoch = []
 
 with torch.no_grad():
     base_x , cls_k , reg_k = model_rpn(image)
-    img_data = {}
-    for b in range(args.train_batch):
-        # Convert rpn layer to roi bboxes
-        # cls_k.shape : b, h, w, 9
-        # reg_k : b, h, w, 36
+
+
+img_data = {}
+for b in range(args.train_batch):
+    # Convert rpn layer to roi bboxes
+    # cls_k.shape : b, h, w, 9
+    # reg_k : b, h, w, 36
+    with torch.no_grad():
         rpn_rois = rpn_to_roi(cls_k[b,:], reg_k[b,:], no_anchors=num_anchors,  all_possible_anchor_boxes=all_possible_anchor_boxes_tensor.clone() )
         # can't concatenate batch 
         # no of boxes may vary across the batch 
         img_data["boxes"] = boxes[b] // downscale
         img_data['labels'] = labels[b]
 
-        # X2 are 
+        # X2 are qualified anchor boxes from model_rpn (converted anochors)
+        # Y1 are the label, Y1[-1] is the background bounding box (negative bounding box), ambigous (neutral boxes are eliminated)
+        # Y2 
         X2, Y1, Y2, IouS = calc_iou(rpn_rois, img_data, class_mapping=config.label_map )
         break 
         # If X2 is None means there are no matching bboxes
@@ -219,17 +229,22 @@ with torch.no_grad():
             rpn_accuracy_for_epoch.append(0)
             continue
 
-        neg_samples = torch.where(Y1[:, -1] == 1)[0]
-        pos_samples = torch.where(Y1[:, -1] == 0)[0]
-        
-        rpn_accuracy_rpn_monitor.append(pos_samples.size(0))
-        rpn_accuracy_for_epoch.append(pos_samples.size(0))
+    neg_samples = torch.where(Y1[:, -1] == 1)[0]
+    pos_samples = torch.where(Y1[:, -1] == 0)[0]
+    
+    n_pos = pos_samples.size(0)
+    n_neg = neg_samples.size(0)
 
 
+    rpn_accuracy_rpn_monitor.append(pos_samples.size(0))
+    rpn_accuracy_for_epoch.append(pos_samples.size(0))
+
+    db = Dataset_roi(pos=pos_samples , neg= neg_samples)
+    
 
 
         indexes = torch.cat([pos_samples  , neg_samples] )
-
+        base_x[b].unsqueeze(0) 
 
         # note: calc_iou converts from (x1,y1,x2,y2) to (x,y,w,h) format
         # X2: bboxes that iou > C.classifier_min_overlap for all gt bboxes in 300 non_max_suppression bboxes

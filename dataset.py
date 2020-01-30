@@ -175,3 +175,31 @@ class Transform(object):
                 
         return image , boxes 
         
+
+
+
+class Dataset_roi(Dataset):
+
+    def __init__(self, pos , neg):
+        self.pos = pos
+        self.neg = neg
+        self.curr = -1
+
+    def __getitem__(self, i):
+        if self.pos.size(0) == 0: 
+            return self.pos[i] , None 
+
+        elif self.neg.size(0) == 0 : 
+            return None , self.neg[i]  
+
+        else:
+            if min(self.pos.size(0) , self.neg.size(0)) == self.pos.size(0):
+                self.curr += 1
+                return self.pos[self.curr % self.pos.size(0)] , self.neg[i]
+
+            else:
+                self.curr += 1
+                return self.pos[i] , self.neg[ self.curr % self.neg.size(0) ]
+
+    def __len__(self):
+        return max(self.pos.size(0), self.neg.size(0))

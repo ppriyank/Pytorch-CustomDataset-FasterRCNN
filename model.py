@@ -1,6 +1,6 @@
 import torch
 import torchvision
-from torch import nn
+import torch.nn as nn
 from torch.nn import functional as F
 from torch.autograd import Variable
 
@@ -93,14 +93,17 @@ class Classifier(nn.Module):
             x , y, h , w = rois[rid]
             x , y, h , w = x.int() , y.int(), h.int() , w.int() 
             cropped_image = base_x[:,:, x:x+w, y:y+h]
-            resized_image = (F.adaptive_avg_pool2d(Variable(cropped_image,volatile=True), ( self.pooling_regions ,self.pooling_regions ) ))
-            outputs.append(resized_image.unsqueeze(0))
+            # resized_image = (F.adaptive_avg_pool2d(Variable(cropped_image,volatile=True), ( self.pooling_regions ,self.pooling_regions ) ))
+            resized_image = (F.adaptive_avg_pool2d( cropped_image , ( self.pooling_regions ,self.pooling_regions ) ))
+            outputs.append(resized_image)
+            # outputs.append(resized_image.unsqueeze(0))
 
-
-        out_roi_pool = torch.cat(outputs,1)
+        out_roi_pool = torch.cat(outputs,0)
+        # out_roi_pool = torch.cat(outputs,1)
+        out_roi_pool = out_roi_pool.view(rois.size(0), self.feat_dim, self.pooling_regions, self.pooling_regions )
         # out_roi_pool = out_roi_pool.view(self.num_rois, self.feat_dim, self.pooling_regions, self.pooling_regions )
 
-        # red_out_roi_pool=  self.red_conv_roi(out_roi_pool)
+        red_out_roi_pool=  self.red_conv_roi(out_roi_pool)
         # red_out_roi_pool = red_out_roi_pool.view(4,-1)
 
         # red_out_roi_pool = self.drop_d1(self.relu_d1(self.d1(red_out_roi_pool)))
