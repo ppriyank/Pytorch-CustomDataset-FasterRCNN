@@ -165,7 +165,7 @@ for key, value in model_rpn.named_parameters():
 
 optimizer_model_rpn = torch.optim.Adam(params_rpn)
 
-for i in range(30) :
+for i in range(25) :
     base_x , cls_k , reg_k = model_rpn(image)
     l1 = rpn_loss_regr(y_true=y_rpn_regr, y_pred=reg_k , y_is_box_label=y_is_box_label)
     l2 = rpn_loss_cls_fixed_num(y_pred = cls_k , y_is_box_label= y_is_box_label)
