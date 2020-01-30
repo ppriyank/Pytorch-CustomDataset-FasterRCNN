@@ -57,7 +57,7 @@ class Model_RPN(nn.Module):
 
 
 class Classifier(nn.Module):
-    def __init__(self, num_classes, anchor_box_scales=[512,256,128], anchor_ratio=[1,0.5,2], **kwargs):
+    def __init__(self, num_classes, **kwargs):
         super(Classifier, self).__init__()
         
         self.pooling_regions = 7
@@ -77,7 +77,7 @@ class Classifier(nn.Module):
         self.d3 = nn.Linear(self.feat_dim  , num_classes , bias=False)
         self.softmax_d3 = nn.Softmax(1)
 
-        self.d4 = nn.Linear(feat_dim  , 4 * (num_classes-1) , bias=False)
+        self.d4 = nn.Linear(self.feat_dim  , 4 * (num_classes-1) , bias=False)
 
         
     def forward(self, base_x , rois ):
@@ -98,18 +98,18 @@ class Classifier(nn.Module):
 
 
         out_roi_pool = torch.cat(outputs,1)
-        out_roi_pool = out_roi_pool.view(self.num_rois, self.feat_dim, self.pooling_regions, self.pooling_regions )
+        # out_roi_pool = out_roi_pool.view(self.num_rois, self.feat_dim, self.pooling_regions, self.pooling_regions )
 
-        red_out_roi_pool=  self.red_conv_roi(out_roi_pool)
-        red_out_roi_pool = red_out_roi_pool.view(4,-1)
+        # red_out_roi_pool=  self.red_conv_roi(out_roi_pool)
+        # red_out_roi_pool = red_out_roi_pool.view(4,-1)
 
-        red_out_roi_pool = self.drop_d1(self.relu_d1(self.d1(red_out_roi_pool)))
-        red_out_roi_pool = self.drop_d2(self.relu_d2(self.d2(red_out_roi_pool)))
+        # red_out_roi_pool = self.drop_d1(self.relu_d1(self.d1(red_out_roi_pool)))
+        # red_out_roi_pool = self.drop_d2(self.relu_d2(self.d2(red_out_roi_pool)))
 
-        out_class = self.softmax_d3(self.d3(red_out_roi_pool))
-        out_regr = self.d4(red_out_roi_pool)
+        # out_class = self.softmax_d3(self.d3(red_out_roi_pool))
+        # out_regr = self.d4(red_out_roi_pool)
 
-        return out_class , out_regr
+        # return out_class , out_regr
 
 
 

@@ -210,10 +210,10 @@ class RPM():
 
         # one issue is that the RPN has many more negative than positive regions, so we turn off some of the negative
         # regions. We also limit it to 256 regions.
-        if num_pos > self.num_regions/2:
-            non_valid_boxes  = random.sample(range( num_pos ), num_pos - self.num_regions/2)
+        if num_pos > self.num_regions//2:
+            non_valid_boxes  = random.sample(range( num_pos ), num_pos - self.num_regions//2)
             y_is_box_label[pos_locs[0][non_valid_boxes], pos_locs[1][non_valid_boxes], pos_locs[2][non_valid_boxes]] = 0 
-            num_pos = self.num_regions/2
+            num_pos = self.num_regions//2
 
         if num_neg + num_pos > self.num_regions:
             non_valid_boxes = random.sample(range(num_neg), num_neg - num_pos)

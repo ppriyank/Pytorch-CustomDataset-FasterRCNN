@@ -15,6 +15,7 @@ Shaoqing Ren, Kaiming He, Ross Girshick, Jian Sun
 - [ ] apply_regr
 - [ ] padding
 - [ ] credits 
+- [ ] Save temp file for data loading  
 - [ ] training code 
 - [ ] parallelize the code ?? : calc_rpn
 - [ ] create parsing json read/write functions
@@ -29,8 +30,14 @@ Tutorial / Credits / Source :  [source](https://towardsdatascience.com/faster-r-
 
 ## Github GUIDE
 
-* Update label_dict in main.py (assign indices to your custom classes)
-
+* Update `config class` in `main.py` (assign indices to your custom classes)
+* `tools.py` has all the bounding boxes/anchor box related things
+* `dataset.py` is manipulation bounding box with respect to various transformations
+* `debug.py` has debugging codes (some of them migh not work, while I was testing various functions)
+* `plot.py` has the code to visualize anchor boxes and bounding boxes
+* `loss.py` has loss functions 
+* `utiils.py` are basic functions IOU calculatins, saving models loading models etc.
+* `model.py` is the collections of 2 simple models (most important manipulation of Faster RCNN comes from `tools.py`). 
 
 ## Explanation 
 

@@ -13,7 +13,7 @@ from torch.utils.data import DataLoader
 from torch.autograd import Variable
 
 
-from  model import Model_RPN
+from  model import Model_RPN , Classifier
 from tools import * 
 
 from dataset import Dataset , collate_fn
@@ -46,7 +46,7 @@ parser.add_argument('--train-batch', default=2, type=int,
                     help="train batch size")
 
 parser.add_argument('--workers', default=8, type=int,
-                    help="# of workers")
+                    help="# of workers, keep it greater than 4")
 parser.add_argument('--seed', default=1, type=int,
                     help="# seed")
 parser.add_argument('--gpu-devices', default="0,1", type=str,
@@ -123,7 +123,7 @@ rpm = RPM(anchor_sizes , anchor_ratios, valid_anchors, config.rev_label_map, rpn
 dataset_train =  Dataset(data_folder=args.dataset, rpm=rpm, split='TRAIN', std_scaling=std_scaling, image_resize_size= (height, width),  debug= False)
 dataset_test =  Dataset(data_folder=args.dataset, rpm=rpm, split='TEST', std_scaling=std_scaling, image_resize_size= (height, width),  debug= False)
 
-
+# keep the number of workers greater than 4
 train_loader = DataLoader(
     dataset_train, shuffle=True,  collate_fn=collate_fn, 
     batch_size=args.train_batch, num_workers=args.workers, pin_memory=pin_memory, drop_last=True)
@@ -137,6 +137,23 @@ test_loader = DataLoader(
 
 
 model_rpn = Model_RPN(num_anchors= len(anchor_sizes) * len(anchor_ratios) )
+model_classifier = Classifier(num_classes=  len(config.voc_labels) )
+
+
+
+weight_decay = 0.0005
+base_learning_rate =  0.0035
+params_rpn = []
+for key, value in model_classifier.named_parameters():
+    if not value.requires_grad:
+        continue
+    lr = base_learning_rate
+    params_rpn += [{"params": [value], "lr": lr, "weight_decay": weight_decay}]
+
+optimizer_classifier = torch.optim.Adam(params_rpn)
+
+
+
 
 all_possible_anchor_boxes = default_anchors(out_h=50, out_w=38, anchor_sizes=anchor_sizes , anchor_ratios=anchor_ratios , downscale=16)
 all_possible_anchor_boxes_tensor = torch.tensor(all_possible_anchor_boxes)
@@ -192,6 +209,8 @@ with torch.no_grad():
         # no of boxes may vary across the batch 
         img_data["boxes"] = boxes[b] // downscale
         img_data['labels'] = labels[b]
+
+        # X2 are 
         X2, Y1, Y2, IouS = calc_iou(rpn_rois, img_data, class_mapping=config.label_map )
         break 
         # If X2 is None means there are no matching bboxes
@@ -201,11 +220,15 @@ with torch.no_grad():
             continue
 
         neg_samples = torch.where(Y1[:, -1] == 1)[0]
-        pos_samples = torch.where(Y1[:, -1] == 0)
+        pos_samples = torch.where(Y1[:, -1] == 0)[0]
         
-         
+        rpn_accuracy_rpn_monitor.append(pos_samples.size(0))
+        rpn_accuracy_for_epoch.append(pos_samples.size(0))
 
 
+
+
+        indexes = torch.cat([pos_samples  , neg_samples] )
 
 
         # note: calc_iou converts from (x1,y1,x2,y2) to (x,y,w,h) format
@@ -239,20 +262,6 @@ for epoch_num in range(num_epochs):
         
         # Find out the positive anchors and negative anchors
         
-
-        if len(neg_samples) > 0:
-            neg_samples = neg_samples[0]
-        else:
-            neg_samples = []
-
-        if len(pos_samples) > 0:
-            pos_samples = pos_samples[0]
-        else:
-            pos_samples = []
-
-        rpn_accuracy_rpn_monitor.append(len(pos_samples))
-        rpn_accuracy_for_epoch.append((len(pos_samples)))
-
         if C.num_rois > 1:
             # If number of positive anchors is larger than 4//2 = 2, randomly choose 2 pos samples
             if len(pos_samples) < C.num_rois//2:
@@ -370,13 +379,8 @@ num_rois = 4 # Number of RoIs to process at once.
 
 
 
-optimizer_classifier = torch.optim.Adam(classifier_params)
-
-optimizer_classifier = torch.optim.Adam(classifier_params)
 
 
-model_rpn.compile(optimizer=optimizer, loss=[rpn_loss_cls(num_anchors), rpn_loss_regr(num_anchors)])
-model_classifier.compile(optimizer=optimizer_classifier, loss=[class_loss_cls, class_loss_regr(len(classes_count)-1)], metrics={'dense_class_{}'.format(len(classes_count)): 'accuracy'})
 model_all.compile(optimizer='sgd', loss='mae')
 
 
