@@ -1,8 +1,8 @@
 import math 
 import numpy as np 
 import random 
-from utils import iou
-
+from utils import iou , iou_tensor
+import copy 
 import torch 
 # Code taken from 
 # https://github.com/RockyXu66/Faster_RCNN_for_Open_Images_Dataset_Keras/blob/master/frcnn_train_vgg.ipynb
@@ -231,19 +231,6 @@ class RPM():
 		# return np.copy(y_is_box_label), np.copy(y_rpn_regr), num_pos
 
 
- 		
-
-
-
-
-
-
-
-
-
-
-
-
 
 # Code taken from here: 
 # https://github.com/RockyXu66/Faster_RCNN_for_Open_Images_Dataset_Keras/blob/master/frcnn_train_vgg.ipynb
@@ -362,6 +349,7 @@ def rpn_to_roi(cls_k, reg_k, no_anchors,  use_regr=True, max_boxes=300, overlap_
 			boxes: coordinates for bboxes (on the feature map)
 	"""
 	reg_k = reg_k / std_scaling
+	h,w = all_possible_anchor_boxes.size(1), all_possible_anchor_boxes.size(2)
 	# all_possible_anchor_boxes : torch.Size([4, 50, 38, 9])
 	for k in range(no_anchors): #current anchor box  	
 			# the Kth anchor of all position in the feature map (9th in total)
@@ -372,12 +360,17 @@ def rpn_to_roi(cls_k, reg_k, no_anchors,  use_regr=True, max_boxes=300, overlap_
 				all_possible_anchor_boxes[ :, :, :, k] = apply_regr_np(all_possible_anchor_boxes[ :, :, :, k], regr)
 
 			# Avoid width and height exceeding 1
-			all_possible_anchor_boxes[2, :, :, k] = all_possible_anchor_boxes[2, :, :, k].clamp(max=1.0) 
-			all_possible_anchor_boxes[3, :, :, k] = all_possible_anchor_boxes[3, :, :, k].clamp(max=1.0) 
+			# all_possible_anchor_boxes[2, :, :, k] = all_possible_anchor_boxes[2, :, :, k].clamp(max=h) 
+			# all_possible_anchor_boxes[3, :, :, k] = all_possible_anchor_boxes[3, :, :, k].clamp(max=w) 
 
 			# Convert (x, y , w, h) to (x1, y1, x2 (x1 + w ), y2 (y1 + h))
 			all_possible_anchor_boxes[2, :, :, k] += all_possible_anchor_boxes[0, :, :, k]
 			all_possible_anchor_boxes[3, :, :, k] += all_possible_anchor_boxes[1, :, :, k]
+
+			# Avoid width and height exceeding 1
+			all_possible_anchor_boxes[2, :, :, k] = all_possible_anchor_boxes[2, :, :, k].clamp(max=h) 
+			all_possible_anchor_boxes[3, :, :, k] = all_possible_anchor_boxes[3, :, :, k].clamp(max=w) 
+
 
 			# Avoid bboxes drawn outside the feature map
 			all_possible_anchor_boxes[0, :, :, k] = all_possible_anchor_boxes[0, :, :, k].clamp(min=0)
@@ -400,52 +393,24 @@ def rpn_to_roi(cls_k, reg_k, no_anchors,  use_regr=True, max_boxes=300, overlap_
 
 	return non_max_suppression_fast(all_boxes, all_probs, overlap_thresh=overlap_thresh, max_boxes=max_boxes)[0]
 
-	
 
 
-
-
-
-def apply_regr(x, y, w, h, tx, ty, tw, th):
-    # Apply regression to x, y, w and h
-    try:
-        cx = x + w/2.
-        cy = y + h/2.
-        cx1 = tx * w + cx
-        cy1 = ty * h + cy
-        w1 = math.exp(tw) * w
-        h1 = math.exp(th) * h
-        x1 = cx1 - w1/2.
-        y1 = cy1 - h1/2.
-        x1 = int(round(x1))
-        y1 = int(round(y1))
-        w1 = int(round(w1))
-        h1 = int(round(h1))
-
-        return x1, y1, w1, h1
-
-    except ValueError:
-        return x, y, w, h
-    except OverflowError:
-        return x, y, w, h
-    except Exception as e:
-        print(e)
-        return x, y, w, h
-
-def calc_iou(rpn_rois, img_data, C, class_mapping , classifier_min_overlap=0.1 ):
+def calc_iou(rpn_rois, img_data, class_mapping , classifier_min_overlap=0.1 , classifier_max_overlap=0.5, classifier_regr_std = [8.0, 8.0, 4.0, 4.0]):
     """Converts from (x1,y1,x2,y2) to (x,y,w,h) format
 
     Args:
         R: bboxes, probs
     """
     boxes = img_data['boxes'].int()
-    
-   
+    class_names = img_data['labels']
+   	# GT boxes and labels 
+   	# rpn_rois are predicted bounding boxes
+
     x_roi = []
     y_class_num = []
     y_class_regr_coords = []
     y_class_regr_label = []
-    
+    IoUs = []
 
     # R.shape[0]: number of bboxes (=300 from non_max_suppression)
     for i in range(rpn_rois.size(0)):
@@ -460,22 +425,24 @@ def calc_iou(rpn_rois, img_data, C, class_mapping , classifier_min_overlap=0.1 )
             w = x2 - x1
             h = y2 - y1
             x_roi.append([x1, y1, w, h])
-            
-            if classifier_min_overlap <= best_iou and best_iou < C.classifier_max_overlap:
+            IoUs.append((best_iou , best_bbox))
+            if classifier_min_overlap <= best_iou and best_iou < classifier_max_overlap:
                 # hard negative example
                 cls_name = 'bg'
-            elif C.classifier_max_overlap <= best_iou:
-                cls_name = bboxes[best_bbox]['class']
-                cxg = (gta[best_bbox, 0] + gta[best_bbox, 1]) / 2.0
-                cyg = (gta[best_bbox, 2] + gta[best_bbox, 3]) / 2.0
+            elif classifier_max_overlap <= best_iou:
+                cls_name = class_mapping[class_names[best_bbox]]
+
+                cxg = (boxes[best_bbox][0] + boxes[best_bbox][2]) / 2 
+                cyg = (boxes[best_bbox][1] + boxes[best_bbox][3]) / 2 
 
                 cx = x1 + w / 2.0
                 cy = y1 + h / 2.0
 
-                tx = (cxg - cx) / float(w)
-                ty = (cyg - cy) / float(h)
-                tw = np.log((gta[best_bbox, 1] - gta[best_bbox, 0]) / float(w))
-                th = np.log((gta[best_bbox, 3] - gta[best_bbox, 2]) / float(h))
+                tx = (cxg - cx) / w
+                ty = (cyg - cy) / h
+
+                tw = (boxes[best_bbox][2] - boxes[best_bbox][0]).float().log() / w
+                th = (boxes[best_bbox][3] - boxes[best_bbox][1]).float().log() / h
             else:
                 print('roi = {}'.format(best_iou))
                 raise RuntimeError
@@ -483,34 +450,30 @@ def calc_iou(rpn_rois, img_data, C, class_mapping , classifier_min_overlap=0.1 )
         class_num = class_mapping[cls_name]
         class_label = len(class_mapping) * [0]
         class_label[class_num] = 1
-        y_class_num.append(copy.deepcopy(class_label))
+        y_class_num.append(class_label)
+
         coords = [0] * 4 * (len(class_mapping) - 1)
         labels = [0] * 4 * (len(class_mapping) - 1)
+
         if cls_name != 'bg':
             label_pos = 4 * class_num
-            sx, sy, sw, sh = C.classifier_regr_std
+            sx, sy, sw, sh = classifier_regr_std
             coords[label_pos:4+label_pos] = [sx*tx, sy*ty, sw*tw, sh*th]
             labels[label_pos:4+label_pos] = [1, 1, 1, 1]
-            y_class_regr_coords.append(copy.deepcopy(coords))
-            y_class_regr_label.append(copy.deepcopy(labels))
+            y_class_regr_coords.append(coords)
+            y_class_regr_label.append(labels)
         else:
-            y_class_regr_coords.append(copy.deepcopy(coords))
-            y_class_regr_label.append(copy.deepcopy(labels))
+            y_class_regr_coords.append(coords)
+            y_class_regr_label.append(labels)
 
     if len(x_roi) == 0:
         return None, None, None, None
 
     # bboxes that iou > C.classifier_min_overlap for all gt bboxes in 300 non_max_suppression bboxes
-    X = np.array(x_roi)
+    X = torch.tensor(x_roi)
     # one hot code for bboxes from above => x_roi (X)
-    Y1 = np.array(y_class_num)
+    Y1 = torch.tensor(y_class_num)
     # corresponding labels and corresponding gt bboxes
-    Y2 = np.concatenate([np.array(y_class_regr_label),np.array(y_class_regr_coords)],axis=1)
+    Y2 = torch.cat([torch.tensor(y_class_regr_label),torch.tensor(y_class_regr_coords)], 1)
 
-    return np.expand_dims(X, axis=0), np.expand_dims(Y1, axis=0), np.expand_dims(Y2, axis=0), IoUs
-
-
-
-
-
-
+    return X, Y1, Y2, IoUs

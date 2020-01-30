@@ -121,7 +121,7 @@ def iou_tensor(x1, y1, x2, y2, boxes):
 
     ind = union > 0
     union = union[ ind ]
-    intersection = union[ ind ]
+    intersection = intersection[ ind ]
     main_ind = main_ind[ind]
 
     if intersection.size(0) == 0 : 

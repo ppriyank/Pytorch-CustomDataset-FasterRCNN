@@ -61,7 +61,7 @@ class Dataset(Dataset):
 
         if not self.debug:
             boxes = torch.FloatTensor(boxes)  # (n_objects, 4)
-            labels = torch.LongTensor(labels)  # (n_objects)
+            # labels = torch.LongTensor(labels)  # (n_objects)
             y_is_box_label = torch.FloatTensor(y_is_box_label)
             y_rpn_regr = torch.FloatTensor(y_rpn_regr)
 

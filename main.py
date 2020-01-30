@@ -28,8 +28,8 @@ class Config(object):
     def __init__(self):
         super(Config, self).__init__()
         self.voc_labels = ('laptop', 'person', 'lights', 'drinks' , 'projector')
+        self.voc_labels += ('bg',)
         self.label_map = {k: v for v, k in enumerate(self.voc_labels)}
-        self.label_map['bg'] = len(self.label_map)
         self.rev_label_map = {v: k for k, v in self.label_map.items()}  # Inverse mapping
         # Color map for bounding boxes of detected objects from https://sashat.me/2017/01/11/list-of-20-simple-distinct-colors/
         self.distinct_colors = ['#e6194b', '#3cb44b', '#ffe119', '#0082c8', '#f58231', '#911eb4', '#46f0f0', '#f032e6',
@@ -163,29 +163,48 @@ for key, value in model_rpn.named_parameters():
     lr = base_learning_rate
     params_rpn += [{"params": [value], "lr": lr, "weight_decay": weight_decay}]
 
-
 optimizer_model_rpn = torch.optim.Adam(params_rpn)
-base_x , cls_k , reg_k = model_rpn(image)
+
+for i in range(30) :
+    base_x , cls_k , reg_k = model_rpn(image)
+    l1 = rpn_loss_regr(y_true=y_rpn_regr, y_pred=reg_k , y_is_box_label=y_is_box_label)
+    l2 = rpn_loss_cls_fixed_num(y_pred = cls_k , y_is_box_label= y_is_box_label)
+    loss = l1 + l2 
+    print(loss.item())
+    optimizer_model_rpn.zero_grad()
+    loss.backward()
+    optimizer_model_rpn.step()
 
 
-l1 = rpn_loss_regr(y_true=y_rpn_regr, y_pred=reg_k , y_is_box_label=y_is_box_label)
-l2 = rpn_loss_cls_fixed_num(y_pred = cls_k , y_is_box_label= y_is_box_label)
+rpn_accuracy_rpn_monitor = []
+rpn_accuracy_for_epoch = []
 
-loss = l1 + l2 
-optimizer_model_rpn.zero_grad()
-loss.backward()
-optimizer_model_rpn.step()
 
 with torch.no_grad():
     base_x , cls_k , reg_k = model_rpn(image)
     img_data = {}
     for b in range(args.train_batch):
+        # Convert rpn layer to roi bboxes
+        # cls_k.shape : b, h, w, 9
+        # reg_k : b, h, w, 36
         rpn_rois = rpn_to_roi(cls_k[b,:], reg_k[b,:], no_anchors=num_anchors,  all_possible_anchor_boxes=all_possible_anchor_boxes_tensor.clone() )
         # can't concatenate batch 
         # no of boxes may vary across the batch 
-        # img_data["image"] = image[b]
         img_data["boxes"] = boxes[b] // downscale
-        # img_data["labels"] = labels[b]
+        img_data['labels'] = labels[b]
+        X2, Y1, Y2, IouS = calc_iou(rpn_rois, img_data, class_mapping=config.label_map )
+        break 
+        # If X2 is None means there are no matching bboxes
+        if X2 is None:
+            rpn_accuracy_rpn_monitor.append(0)
+            rpn_accuracy_for_epoch.append(0)
+            continue
+
+        neg_samples = torch.where(Y1[:, -1] == 1)[0]
+        pos_samples = torch.where(Y1[:, -1] == 0)
+        
+         
+
 
 
 
@@ -193,7 +212,7 @@ with torch.no_grad():
         # X2: bboxes that iou > C.classifier_min_overlap for all gt bboxes in 300 non_max_suppression bboxes
         # Y1: one hot code for bboxes from above => x_roi (X)
         # Y2: corresponding labels and corresponding gt bboxes
-        X2, Y1, Y2, IouS = calc_iou(R, img_data, C, class_mapping)
+        
 
 
 
@@ -201,9 +220,6 @@ with torch.no_grad():
 
 
 
-# Convert rpn layer to roi bboxes
-# cls_k.shape : b, h, w, 9
-# reg_k : b, h, w, 36
 
 
 
@@ -218,24 +234,11 @@ for epoch_num in range(num_epochs):
             if mean_overlapping_bboxes == 0:
                 print('RPN is not producing bounding boxes that overlap the ground truth boxes. Check RPN settings or keep training.')
 
-        for i,(image, boxes, labels , temp, num_pos) in enumerate(train_loader):
-            break
-
-        y_is_box_label = temp[0]
-        y_rpn_regr = temp[1]
-
         
         
-        
-        # If X2 is None means there are no matching bboxes
-        if X2 is None:
-            rpn_accuracy_rpn_monitor.append(0)
-            rpn_accuracy_for_epoch.append(0)
-            continue
         
         # Find out the positive anchors and negative anchors
-        neg_samples = np.where(Y1[0, :, -1] == 1)
-        pos_samples = np.where(Y1[0, :, -1] == 0)
+        
 
         if len(neg_samples) > 0:
             neg_samples = neg_samples[0]
@@ -357,7 +360,7 @@ lambda_cls_class = 1.0
 
 classifier_min_overlap = 0.1
 classifier_max_overlap = 0.5
-
+classifier_regr_std = [8.0, 8.0, 4.0, 4.0]
 
 epsilon = 1e-4
 
@@ -389,8 +392,6 @@ iter_num = 0
 total_epochs += num_epochs
 
 losses = np.zeros((epoch_length, 5))
-rpn_accuracy_rpn_monitor = []
-rpn_accuracy_for_epoch = []
 
 if len(record_df)==0:
     best_loss = np.Inf
