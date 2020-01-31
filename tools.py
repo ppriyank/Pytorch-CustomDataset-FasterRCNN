@@ -470,8 +470,8 @@ def calc_iou(rpn_rois, img_data, class_mapping , classifier_min_overlap=0.1 , cl
             y_class_regr_coords.append(coords)
             y_class_regr_label.append(labels)
         # print(len(labels))
-        import pdb
-        pdb.set_trace()
+        # import pdb
+        # pdb.set_trace()
 
 
     if len(x_roi) == 0:

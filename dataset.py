@@ -36,7 +36,7 @@ class Dataset(Dataset):
         self.image_resize_size = image_resize_size
         self.debug = debug
 
-    def __getitem__(self, i, verify_image=False):
+    def __getitem__(self, i, verify_image=False, data_format='bg_first' ):
         # Read image
         image = Image.open(self.images[i], mode='r')
         image = image.convert('RGB')
@@ -45,6 +45,8 @@ class Dataset(Dataset):
         objects = self.objects[i]
         boxes = objects['boxes']
         labels = objects['labels']
+        if data_format ==  'bg_first':
+            labels = [l-1 for l in labels ]
 
         if verify_image:
             verify(image, boxes, labels)

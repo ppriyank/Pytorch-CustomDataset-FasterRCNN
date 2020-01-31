@@ -56,7 +56,7 @@ parser.add_argument('--gpu-devices', default="0,1", type=str,
                     help="# of gpu devices")
 parser.add_argument('--display-rpn', default=10, type=int,
                     help="display frequency of performance of rpn model")
-parser.add_argument('--display-class', default=2, type=int,
+parser.add_argument('--display-class', default=20, type=int,
                     help="display frequency of performance of classification model")
 # training related specs
 parser.add_argument('-d', '--dataset', type=str, default='./',
@@ -262,54 +262,54 @@ def train(epoch):
                     rpn_accuracy_rpn_monitor.append(pos_samples.size(0))
                     rpn_accuracy_for_epoch.append(pos_samples.size(0))
 
-                    db = Dataset_roi(pos=pos_samples , neg= neg_samples)
-                    roi_loader = DataLoader(db, shuffle=True,  
-                        batch_size=args.n_roi // 2, num_workers=args.workers, pin_memory=pin_memory, drop_last=False)
-                    for j,potential_roi in enumerate(roi_loader):
-                        pos = potential_roi[0]
-                        neg = potential_roi[1]
-                        if type(pos) == list :
-                            rois = X2[neg]
-                            base_x = base_x[b].unsqueeze(0)
-                            Y11 = Y1[neg]
-                            Y22 = Y2[neg]
-                            # out_class : args.n_roi // 2 , # no of class
-                        elif type(neg) == list :
-                            rois = X2[pos]
-                            base_x = base_x[b].unsqueeze(0)
-                            #out_class :  args.n_roi // 2 , # no of class
-                            Y11 = Y1[pos]
-                            Y22 = Y2[pos]
-                        else:
-                            ind = torch.cat([pos,neg])
-                            rois = X2[ind]
-                            base_x = base_x[b].unsqueeze(0)
-                            #out_class:  args.n_roi , # no of class
-                            Y11 = Y1[ind]
-                            Y22 = Y2[ind]
-                        count_class += 1
-                        rois = Variable(rois).to(device=device)
-                        out_class , out_regr = model_classifier(base_x , rois)
-                        
-                        l3 = class_loss_cls(y_true=Y11, y_pred=out_class , lambda_cls_class=args.lambda_cls_class)
-                        l4 = class_loss_regr(y_true=Y22, y_pred= out_regr , lambda_cls_regr= args.lambda_cls_regr)
+                db = Dataset_roi(pos=pos_samples , neg= neg_samples)
+                roi_loader = DataLoader(db, shuffle=True,  
+                    batch_size=args.n_roi // 2, num_workers=args.workers, pin_memory=pin_memory, drop_last=False)
+                for j,potential_roi in enumerate(roi_loader):
+                    pos = potential_roi[0]
+                    neg = potential_roi[1]
+                    if type(pos) == list :
+                        rois = X2[neg]
+                        rpn_base = base_x[b].unsqueeze(0)
+                        Y11 = Y1[neg]
+                        Y22 = Y2[neg]
+                        # out_class : args.n_roi // 2 , # no of class
+                    elif type(neg) == list :
+                        rois = X2[pos]
+                        rpn_base = base_x[b].unsqueeze(0)
+                        #out_class :  args.n_roi // 2 , # no of class
+                        Y11 = Y1[pos]
+                        Y22 = Y2[pos]
+                    else:
+                        ind = torch.cat([pos,neg])
+                        rois = X2[ind]
+                        rpn_base = base_x[b].unsqueeze(0)
+                        #out_class:  args.n_roi , # no of class
+                        Y11 = Y1[ind]
+                        Y22 = Y2[ind]
+                    count_class += 1
+                    rois = Variable(rois).to(device=device)
+                    out_class , out_regr = model_classifier(base_x = rpn_base , rois= rois )
+                    
+                    l3 = class_loss_cls(y_true=Y11, y_pred=out_class , lambda_cls_class=args.lambda_cls_class)
+                    l4 = class_loss_regr(y_true=Y22, y_pred= out_regr , lambda_cls_regr= args.lambda_cls_regr)
 
-                        regr_class_loss += l4.item()
-                        class_class_loss += l3.item()   
+                    regr_class_loss += l4.item()
+                    class_class_loss += l3.item()   
 
-                        loss = l3 + l4 
-                        total_class_loss += loss.item()
-                        
-                        
-                        optimizer_classifier.zero_grad()
-                        loss.backward()
-                        optimizer_classifier.step()
+                    loss = l3 + l4 
+                    total_class_loss += loss.item()
+                    
+                    
+                    optimizer_classifier.zero_grad()
+                    loss.backward()
+                    optimizer_classifier.step()
 
                     if count_class % args.display_class == 0 :
                         if count_class == 0 :
-                            print('Classifier Model Classification loss: {} Regression loss: {} Total Loss: {}'.format(0,0,0))
+                            print('{},{},{}, Classifier Model Classification loss: {} Regression loss: {} Total Loss: {}'.format(i,b,j,0,0,0))
                         else:
-                            print('Classifier Model Classification loss: {} Regression loss: {} Total Loss: {} '.format(class_class_loss / count_class, regr_class_loss / count_class ,total_class_loss/ count_class ))
+                            print('{},{},{}, Classifier Model Classification loss: {} Regression loss: {} Total Loss: {} '.format(i,b,j, class_class_loss / count_class, regr_class_loss / count_class ,total_class_loss/ count_class ))
 
     if i % args.display_rpn == 0 :
         if len(rpn_accuracy_rpn_monitor) == 0 :
