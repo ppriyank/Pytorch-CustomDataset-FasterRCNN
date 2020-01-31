@@ -39,10 +39,7 @@ class Config(object):
                    '#d2f53c', '#fabebe', '#008080', '#000080', '#aa6e28', '#fffac8', '#800000', '#aaffc3', '#808000',
                    '#ffd8b1', '#e6beff', '#808080', '#FFFFFF']
 
-
-
 config = Config()
-
 
 parser = argparse.ArgumentParser(description='Faster RCNN (Custom Dataset)')
 # basic running parameters 
@@ -54,7 +51,7 @@ parser.add_argument('--seed', default=1, type=int,
                     help="# seed")
 parser.add_argument('--gpu-devices', default="0,1", type=str,
                     help="# of gpu devices")
-parser.add_argument('--display-rpn', default=10, type=int,
+parser.add_argument('--display-rpn', default=1, type=int,
                     help="display frequency of performance of rpn model")
 parser.add_argument('--display-class', default=20, type=int,
                     help="display frequency of performance of classification model")
@@ -214,118 +211,246 @@ def train(epoch):
 
 
     for i,(image, boxes, labels , temp, num_pos) in enumerate(train_loader):
-            count_rpn +=1
-            y_is_box_label = temp[0]
-            y_rpn_regr = temp[1]
-            image = Variable(image)
+        count_rpn +=1
+        y_is_box_label = temp[0]
+        y_rpn_regr = temp[1]
+        image = Variable(image)
+        base_x , cls_k , reg_k = model_rpn(image)
+        l1 = rpn_loss_regr(y_true=y_rpn_regr, y_pred=reg_k , y_is_box_label=y_is_box_label , lambda_rpn_regr=args.lambda_rpn_regr)
+        l2 = rpn_loss_cls_fixed_num(y_pred = cls_k , y_is_box_label= y_is_box_label , lambda_rpn_class = args.lambda_rpn_class)
+        
+        regr_rpn_loss += l1.item() 
+        class_rpn_loss += l2.item() 
+        loss = l1 + l2 
+        total_rpn_loss += loss.item()
+        
+        optimizer_model_rpn.zero_grad()
+        loss.backward()
+        optimizer_model_rpn.step()                        
+        with torch.no_grad():
             base_x , cls_k , reg_k = model_rpn(image)
-            l1 = rpn_loss_regr(y_true=y_rpn_regr, y_pred=reg_k , y_is_box_label=y_is_box_label , lambda_rpn_regr=args.lambda_rpn_regr)
-            l2 = rpn_loss_cls_fixed_num(y_pred = cls_k , y_is_box_label= y_is_box_label , lambda_rpn_class = args.lambda_rpn_class)
-            
-            regr_rpn_loss += l1.item() 
-            class_rpn_loss += l2.item() 
-            loss = l1 + l2 
-            total_rpn_loss += loss.item()
-            
-            optimizer_model_rpn.zero_grad()
-            loss.backward()
-            optimizer_model_rpn.step()                        
+        img_data = {}
+        for b in range(args.train_batch):
             with torch.no_grad():
-                base_x , cls_k , reg_k = model_rpn(image)
-            img_data = {}
-            for b in range(args.train_batch):
-                with torch.no_grad():
-                    # Convert rpn layer to roi bboxes
-                    # cls_k.shape : b, h, w, 9
-                    # reg_k : b, h, w, 36
-                    rpn_rois = rpn_to_roi(cls_k[b,:], reg_k[b,:], no_anchors=num_anchors,  all_possible_anchor_boxes=all_possible_anchor_boxes_tensor.clone() )
-                    rpn_rois.to(device=device)
-                    # can't concatenate batch 
-                    # no of boxes may vary across the batch 
-                    img_data["boxes"] = boxes[b] // downscale
-                    img_data['labels'] = labels[b]
-                    # X2 are qualified anchor boxes from model_rpn (converted anochors)
-                    # Y1 are the label, Y1[-1] is the background bounding box (negative bounding box), ambigous (neutral boxes are eliminated < min overlap thresold)
-                    # Y2 is concat of 1 , tx, ty, tw, th and 0, tx, ty, tw, th 
-                    X2, Y1, Y2, _ = calc_iou(rpn_rois, img_data, class_mapping=config.label_map )
-                    X2 = X2.to(device=device)
-                    Y1 = Y1.to(device=device)
-                    Y2 = Y2.to(device=device)
+                # Convert rpn layer to roi bboxes
+                # cls_k.shape : b, h, w, 9
+                # reg_k : b, h, w, 36
+                rpn_rois = rpn_to_roi(cls_k[b,:], reg_k[b,:], no_anchors=num_anchors,  all_possible_anchor_boxes=all_possible_anchor_boxes_tensor.clone() )
+                rpn_rois.to(device=device)
+                # can't concatenate batch 
+                # no of boxes may vary across the batch 
+                img_data["boxes"] = boxes[b] // downscale
+                img_data['labels'] = labels[b]
+                # X2 are qualified anchor boxes from model_rpn (converted anochors)
+                # Y1 are the label, Y1[-1] is the background bounding box (negative bounding box), ambigous (neutral boxes are eliminated < min overlap thresold)
+                # Y2 is concat of 1 , tx, ty, tw, th and 0, tx, ty, tw, th 
+                X2, Y1, Y2, _ = calc_iou(rpn_rois, img_data, class_mapping=config.label_map )
+                X2 = X2.to(device=device)
+                Y1 = Y1.to(device=device)
+                Y2 = Y2.to(device=device)
 
-                    # If X2 is None means there are no matching bboxes
-                    if X2 is None:
-                        rpn_accuracy_rpn_monitor.append(0)
-                        rpn_accuracy_for_epoch.append(0)
-                        continue
-                    neg_samples = torch.where(Y1[:, -1] == 1)[0]
-                    pos_samples = torch.where(Y1[:, -1] == 0)[0]
-                    rpn_accuracy_rpn_monitor.append(pos_samples.size(0))
-                    rpn_accuracy_for_epoch.append(pos_samples.size(0))
+                # If X2 is None means there are no matching bboxes
+                if X2 is None:
+                    rpn_accuracy_rpn_monitor.append(0)
+                    rpn_accuracy_for_epoch.append(0)
+                    continue
+                neg_samples = torch.where(Y1[:, -1] == 1)[0]
+                pos_samples = torch.where(Y1[:, -1] == 0)[0]
+                rpn_accuracy_rpn_monitor.append(pos_samples.size(0))
+                rpn_accuracy_for_epoch.append(pos_samples.size(0))
 
-                db = Dataset_roi(pos=pos_samples , neg= neg_samples)
-                roi_loader = DataLoader(db, shuffle=True,  
-                    batch_size=args.n_roi // 2, num_workers=args.workers, pin_memory=pin_memory, drop_last=False)
-                for j,potential_roi in enumerate(roi_loader):
-                    pos = potential_roi[0]
-                    neg = potential_roi[1]
-                    if type(pos) == list :
-                        rois = X2[neg]
-                        rpn_base = base_x[b].unsqueeze(0)
-                        Y11 = Y1[neg]
-                        Y22 = Y2[neg]
-                        # out_class : args.n_roi // 2 , # no of class
-                    elif type(neg) == list :
-                        rois = X2[pos]
-                        rpn_base = base_x[b].unsqueeze(0)
-                        #out_class :  args.n_roi // 2 , # no of class
-                        Y11 = Y1[pos]
-                        Y22 = Y2[pos]
+            db = Dataset_roi(pos=pos_samples , neg= neg_samples)
+            roi_loader = DataLoader(db, shuffle=True,  
+                batch_size=args.n_roi // 2, num_workers=args.workers, pin_memory=pin_memory, drop_last=False)
+            for j,potential_roi in enumerate(roi_loader):
+                pos = potential_roi[0]
+                neg = potential_roi[1]
+                if type(pos) == list :
+                    rois = X2[neg]
+                    rpn_base = base_x[b].unsqueeze(0)
+                    Y11 = Y1[neg]
+                    Y22 = Y2[neg]
+                    # out_class : args.n_roi // 2 , # no of class
+                elif type(neg) == list :
+                    rois = X2[pos]
+                    rpn_base = base_x[b].unsqueeze(0)
+                    #out_class :  args.n_roi // 2 , # no of class
+                    Y11 = Y1[pos]
+                    Y22 = Y2[pos]
+                else:
+                    ind = torch.cat([pos,neg])
+                    rois = X2[ind]
+                    rpn_base = base_x[b].unsqueeze(0)
+                    #out_class:  args.n_roi , # no of class
+                    Y11 = Y1[ind]
+                    Y22 = Y2[ind]
+                count_class += 1
+                rois = Variable(rois).to(device=device)
+                out_class , out_regr = model_classifier(base_x = rpn_base , rois= rois )
+                
+                l3 = class_loss_cls(y_true=Y11, y_pred=out_class , lambda_cls_class=args.lambda_cls_class)
+                l4 = class_loss_regr(y_true=Y22, y_pred= out_regr , lambda_cls_regr= args.lambda_cls_regr)
+
+                regr_class_loss += l4.item()
+                class_class_loss += l3.item()   
+
+                loss = l3 + l4 
+                total_class_loss += loss.item()
+                
+                
+                optimizer_classifier.zero_grad()
+                loss.backward()
+                optimizer_classifier.step()
+
+                if count_class % args.display_class == 0 :
+                    if count_class == 0 :
+                        print('[Classifier] RPN Ex: {}-th ,Batch : {}, Anchor Box: {}-th, Classifier Model Classification loss: {} Regression loss: {} Total Loss: {}'.format(i,b,j,0,0,0))
                     else:
-                        ind = torch.cat([pos,neg])
-                        rois = X2[ind]
-                        rpn_base = base_x[b].unsqueeze(0)
-                        #out_class:  args.n_roi , # no of class
-                        Y11 = Y1[ind]
-                        Y22 = Y2[ind]
-                    count_class += 1
-                    rois = Variable(rois).to(device=device)
-                    out_class , out_regr = model_classifier(base_x = rpn_base , rois= rois )
-                    
-                    l3 = class_loss_cls(y_true=Y11, y_pred=out_class , lambda_cls_class=args.lambda_cls_class)
-                    l4 = class_loss_regr(y_true=Y22, y_pred= out_regr , lambda_cls_regr= args.lambda_cls_regr)
+                        print('[Classifier] RPN Ex: {}-th ,Batch : {}, Anchor Box: {}-th, Classifier Model Classification loss: {} Regression loss: {} Total Loss: {} '.format(i,b,j, class_class_loss / count_class, regr_class_loss / count_class ,total_class_loss/ count_class ))
 
-                    regr_class_loss += l4.item()
-                    class_class_loss += l3.item()   
+        if i % args.display_rpn == 0 :
+            if len(rpn_accuracy_rpn_monitor) == 0 :
+                print('[RPN] RPN is not producing bounding boxes that overlap the ground truth boxes. Check RPN settings or keep training.')
+            else:
+                mean_overlapping_bboxes = float(sum(rpn_accuracy_rpn_monitor))/len(rpn_accuracy_rpn_monitor)
+                print('[RPN] Mean number of bounding boxes from RPN overlapping ground truth boxes: {}'.format(mean_overlapping_bboxes)) 
+            print('[RPN] RPN Ex: {}-th RPN Model Classification loss: {} Regression loss: {} Total Loss: {} '.format(i ,class_rpn_loss / count_rpn, regr_rpn_loss / count_rpn ,total_rpn_loss/ count_rpn ))
 
-                    loss = l3 + l4 
-                    total_class_loss += loss.item()
-                    
-                    
-                    optimizer_classifier.zero_grad()
-                    loss.backward()
-                    optimizer_classifier.step()
-
-                    if count_class % args.display_class == 0 :
-                        if count_class == 0 :
-                            print('{},{},{}, Classifier Model Classification loss: {} Regression loss: {} Total Loss: {}'.format(i,b,j,0,0,0))
-                        else:
-                            print('{},{},{}, Classifier Model Classification loss: {} Regression loss: {} Total Loss: {} '.format(i,b,j, class_class_loss / count_class, regr_class_loss / count_class ,total_class_loss/ count_class ))
-
-    if i % args.display_rpn == 0 :
-        if len(rpn_accuracy_rpn_monitor) == 0 :
-            print('RPN is not producing bounding boxes that overlap the ground truth boxes. Check RPN settings or keep training.')
-        else:
-            mean_overlapping_bboxes = float(sum(rpn_accuracy_rpn_monitor))/len(rpn_accuracy_rpn_monitor)
-            print('Mean number of bounding boxes from RPN overlapping ground truth boxes: {}'.format(mean_overlapping_bboxes)) 
-        print('RPN Model Classification loss: {} Regression loss: {} Total Loss: {} '.format(class_rpn_loss / count_rpn, regr_rpn_loss / count_rpn ,total_rpn_loss/ count_rpn ))
+    print("-- END OF EPOCH -- ") 
+    print('[RPN] RPN Ex: {}-th RPN Model Classification loss: {} Regression loss: {} Total Loss: {} '.format(i ,class_rpn_loss / count_rpn, regr_rpn_loss / count_rpn ,total_rpn_loss/ count_rpn ))
+    if count_class == 0 :
+        print('[Classifier] RPN Ex: {}-th ,Batch : {}, Anchor Box: {}-th, Classifier Model Classification loss: {} Regression loss: {} Total Loss: {}'.format(i,b,j,0,0,0))
+    else:
+        print('[Classifier] RPN Ex: {}-th ,Batch : {}, Anchor Box: {}-th, Classifier Model Classification loss: {} Regression loss: {} Total Loss: {} '.format(i,b,j, class_class_loss / count_class, regr_class_loss / count_class ,total_class_loss/ count_class ))
+    if len(rpn_accuracy_rpn_monitor) == 0 :
+        print('[RPN] RPN is not producing bounding boxes that overlap the ground truth boxes. Check RPN settings or keep training.')
+    else:
+        mean_overlapping_bboxes = float(sum(rpn_accuracy_rpn_monitor))/len(rpn_accuracy_rpn_monitor)
+        print('[RPN] Mean number of bounding boxes from RPN overlapping ground truth boxes: {}'.format(mean_overlapping_bboxes)) 
+    print('Total Loss  {}'.format(  total_class_loss/ count_class + total_rpn_loss/ count_rpn ))
 
 
+
+
+def test(epoch):
+    print("Testing after epoch {}".format(epoch))
+    rpn_accuracy_rpn_monitor = []
+    rpn_accuracy_for_epoch = []
+    
+    regr_rpn_loss= 0 
+    class_rpn_loss =0 
+    total_rpn_loss = 0 
+
+    regr_class_loss= 0
+    class_class_loss =0  
+    total_class_loss = 0     
+
+    count_rpn  = 0 
+    count_class = 0 
+
+
+    for i,(image, boxes, labels , temp, num_pos) in enumerate(train_loader):
+        count_rpn +=1
+        y_is_box_label = temp[0]
+        y_rpn_regr = temp[1]
+        image = Variable(image)
+        base_x , cls_k , reg_k = model_rpn(image)
+        l1 = rpn_loss_regr(y_true=y_rpn_regr, y_pred=reg_k , y_is_box_label=y_is_box_label , lambda_rpn_regr=args.lambda_rpn_regr)
+        l2 = rpn_loss_cls_fixed_num(y_pred = cls_k , y_is_box_label= y_is_box_label , lambda_rpn_class = args.lambda_rpn_class)
+        
+        regr_rpn_loss += l1.item() 
+        class_rpn_loss += l2.item() 
+        loss = l1 + l2 
+        total_rpn_loss += loss.item()
+        
+        base_x , cls_k , reg_k = model_rpn(image)
+
+        for b in range(args.train_batch):
+            img_data = {}
+            rpn_rois = rpn_to_roi(cls_k[b,:], reg_k[b,:], no_anchors=num_anchors,  all_possible_anchor_boxes=all_possible_anchor_boxes_tensor.clone() )
+            rpn_rois.to(device=device)
+
+            img_data["boxes"] = boxes[b] // downscale
+            img_data['labels'] = labels[b]
+
+            X2, Y1, Y2, _ = calc_iou(rpn_rois, img_data, class_mapping=config.label_map )
+            X2 = X2.to(device=device)
+            Y1 = Y1.to(device=device)
+            Y2 = Y2.to(device=device)
+
+            if X2 is None:
+                rpn_accuracy_rpn_monitor.append(0)
+                rpn_accuracy_for_epoch.append(0)
+                continue
+
+            neg_samples = torch.where(Y1[:, -1] == 1)[0]
+            pos_samples = torch.where(Y1[:, -1] == 0)[0]
+
+            rpn_accuracy_rpn_monitor.append(pos_samples.size(0))
+            rpn_accuracy_for_epoch.append(pos_samples.size(0))
+
+            db = Dataset_roi(pos=pos_samples , neg= neg_samples)
+            roi_loader = DataLoader(db, shuffle=True,  
+                batch_size=args.n_roi // 2, num_workers=args.workers, pin_memory=pin_memory, drop_last=False)
+            
+            for j,potential_roi in enumerate(roi_loader):
+                pos = potential_roi[0]
+                neg = potential_roi[1]
+                if type(pos) == list :
+                    rois = X2[neg]
+                    rpn_base = base_x[b].unsqueeze(0)
+                    Y11 = Y1[neg]
+                    Y22 = Y2[neg]
+                elif type(neg) == list :
+                    rois = X2[pos]
+                    rpn_base = base_x[b].unsqueeze(0)
+                    Y11 = Y1[pos]
+                    Y22 = Y2[pos]
+                else:
+                    ind = torch.cat([pos,neg])
+                    rois = X2[ind]
+                    rpn_base = base_x[b].unsqueeze(0)
+                    Y11 = Y1[ind]
+                    Y22 = Y2[ind]
+
+                count_class += 1
+                rois = Variable(rois).to(device=device)
+                out_class , out_regr = model_classifier(base_x = rpn_base , rois= rois )
+                
+                l3 = class_loss_cls(y_true=Y11, y_pred=out_class , lambda_cls_class=args.lambda_cls_class)
+                l4 = class_loss_regr(y_true=Y22, y_pred= out_regr , lambda_cls_regr= args.lambda_cls_regr)
+
+                regr_class_loss += l4.item()
+                class_class_loss += l3.item()   
+
+                loss = l3 + l4 
+                total_class_loss += loss.item()
+        
+    
+    if count_class == 0 :
+        count_class = 1
+        total_class_loss = 0 
+        print('[Test Accuracy] Classifier Model Classification loss: {} Regression loss: {} Total Loss: {} '.format(0, 0 ,0 ))
+    else:
+        print('[Test Accuracy] Classifier Model Classification loss: {} Regression loss: {} Total Loss: {} '.format(class_class_loss / count_class, regr_class_loss / count_class ,total_class_loss/ count_class ))
+
+    print('[Test Accuracy] RPN Model Classification loss: {} Regression loss: {} Total Loss: {} '.format(class_rpn_loss / count_rpn, regr_rpn_loss / count_rpn ,total_rpn_loss/ count_rpn ))
+    if len(rpn_accuracy_rpn_monitor) == 0 :
+        print('[Test Accuracy] RPN is not producing bounding boxes that overlap the ground truth boxes. Check RPN settings or keep training.')        
+    else:
+        mean_overlapping_bboxes = float(sum(rpn_accuracy_rpn_monitor))/len(rpn_accuracy_rpn_monitor)
+        print('[Test Accuracy] Mean number of bounding boxes from RPN overlapping ground truth boxes: {}'.format(mean_overlapping_bboxes)) 
+    
+    return total_class_loss/ count_class + total_rpn_loss/ count_rpn
 
 for i in range(20):
+    model_rpn.train()
+    model_classifier.train()    
     train(i)
-    scheduler.step()
     scheduler_rpn.step()
     scheduler_class.step()
+    model_rpn.eval()
+    model_classifier.eval()    
 
 print('Training complete, exiting.')
 

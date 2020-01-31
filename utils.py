@@ -10,15 +10,19 @@ def clip_gradient(optimizer, grad_clip):
                 param.grad.data.clamp_(-grad_clip, grad_clip)
 
 
-# def save_checkpoint(epoch, model, loss, is_best, name="_"):
-#     state = {'epoch': epoch,
-#              'loss': loss,
-#              'model': model}
-#     filename = name + 'checkpoint_ssd300.pth.tar'
-#     # torch.save(state, filename)
-#     # If this checkpoint is the best so far, store a copy so it doesn't get overwritten by a worse checkpoint
-#     if is_best:
-#         torch.save(state, 'BEST_' + filename)
+def save_checkpoint(epoch, model_rpn, model_classifier, optimizer_model_rpn, optimizer_classifier, name="_"):
+    state = {'model_rpn': model_rpn,
+             'model_classifier': model_classifier,
+             'optimizer_model_rpn': optimizer_model_rpn,
+             'optimizer_classifier': optimizer_classifier, 
+             'epoch': epoch
+             }
+
+    # filename = name + 'checkpoint_ssd300.pth.tar'
+    # # torch.save(state, filename)
+    # # If this checkpoint is the best so far, store a copy so it doesn't get overwritten by a worse checkpoint
+    # if is_best:
+    #     torch.save(state, 'BEST_' + filename)
 
 
 # def save_checkpoint(state, is_best, fpath='checkpoint.pth.tar'):

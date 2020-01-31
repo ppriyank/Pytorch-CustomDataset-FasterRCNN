@@ -23,8 +23,6 @@ Shaoqing Ren, Kaiming He, Ross Girshick, Jian Sun
 - [ ] Remove log from tw and th to check if performance changes??
 
 
-
-
 Tutorial / Credits / Source :  [source](https://towardsdatascience.com/faster-r-cnn-object-detection-implemented-by-keras-for-custom-data-from-googles-open-images-125f62b9141a)  ||  [Github](https://github.com/RockyXu66/Faster_RCNN_for_Open_Images_Dataset_Keras)
 
 
@@ -38,6 +36,10 @@ Tutorial / Credits / Source :  [source](https://towardsdatascience.com/faster-r-
 * `loss.py` has loss functions 
 * `utiils.py` are basic functions IOU calculatins, saving models loading models etc.
 * `model.py` is the collections of 2 simple models (most important manipulation of Faster RCNN comes from `tools.py`). 
+
+## Custom Dataset
+
+
 
 ## Explanation 
 
