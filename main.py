@@ -20,7 +20,7 @@ import torchvision.transforms as transforms
 from torch.autograd import Variable
 from loss import rpn_loss_regr , rpn_loss_cls_fixed_num  , class_loss_cls , class_loss_regr
 
-
+from plot import save_evaluations_image
 
 
 class Config(object):
@@ -193,7 +193,7 @@ test_loader = DataLoader(
 
 state = None 
 if args.pretrained:
-    state=  load_checkpoint(args.save_dir , device=device)
+    state=  load_checkpoint(save_dir=args.save_dir , device=device)
     if state == None :
         print("==== No Pretrained weights found")
 
@@ -416,7 +416,7 @@ def test(epoch):
 
     total_count = 0
 
-    for i,(image, boxes, labels , temp, num_pos) in enumerate(train_loader):
+    for i,(image, boxes, labels , temp, num_pos) in enumerate(test_loader):
         count_rpn +=1
         
         y_is_box_label = temp[0].to(device=device)
@@ -472,8 +472,7 @@ def test(epoch):
                 predicted_boxes = predicted_boxes * downscale
                 
                 temp_img = (denormalize['std'] * image[b]) + denormalize['mean']  
-                save_evaluations_image(image=temp_img, boxes=predicted_boxes, labels=Y1, count=total_count, config=config)
-
+                save_evaluations_image(image=temp_img, boxes=predicted_boxes, labels=Y1, count=total_count, config=config , save_dir=args.save_dir)
     
     if count_class == 0 :
         count_class = 1
@@ -495,19 +494,19 @@ def test(epoch):
 
 
 for i in range(start_epoch + 1 , args.max_epochs):
-    # model_rpn.train()
-    # model_classifier.train()    
-    # train(i)
-    # scheduler_rpn.step()
-    # scheduler_class.step()
+    model_rpn.train()
+    model_classifier.train()    
+    train(i)
+    scheduler_rpn.step()
+    scheduler_class.step()
     model_rpn.eval()
     model_classifier.eval()  
     total_loss = test(i)
-    # if total_loss < best_error : 
-    #     save_checkpoint(i, model_rpn, model_classifier, optimizer_model_rpn, optimizer_classifier , best_error, save_dir=args.save_dir)
+    if total_loss < best_error : 
+        save_checkpoint(i, model_rpn, model_classifier, optimizer_model_rpn, optimizer_classifier , best_error, save_dir=args.save_dir)
 
     print("=== {} === ".format(total_loss))  
-    break 
+    # break 
 print('Training complete, exiting.')
 
 

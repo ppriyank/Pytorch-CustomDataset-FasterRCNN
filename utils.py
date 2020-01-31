@@ -43,12 +43,13 @@ def save_checkpoint(epoch, model_rpn, model_classifier, optimizer_model_rpn, opt
 def load_checkpoint(save_dir="./" , device='cpu'):
     if not os.path.isdir(save_dir):
         os.makedirs(save_dir)
+
     f = check_file(save_dir)
     if f != None :
         if device == 'cpu':
             return torch.load(osp.join(save_dir, f) , map_location=torch.device('cpu')  )
         else:
-            torch.load(osp.join(save_dir, f))
+            return torch.load(osp.join(save_dir, f))
     else :
         return None 
 

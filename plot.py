@@ -1,8 +1,10 @@
-
-from PIL import Image, ImageDraw, ImageFont
+import os 
 import torchvision.transforms as transforms 
 import torch
 import copy 
+
+from PIL import Image, ImageDraw, ImageFont
+
 
 def verify(image, boxes, labels, c):
     label_color_map = {k: c.distinct_colors[i] for i, k in enumerate(c.rev_label_map.keys())}
@@ -56,7 +58,7 @@ def save_evaluations_image(image, boxes, labels, count, config , save_dir):
 
     trans = transforms.ToPILImage()
     image = trans(image.cpu())
-    image.save(str(count) + ".jpg") 
+    image.save(save_dir + str(count) + ".jpg") 
     pos_image=  copy.deepcopy(image)  
 
     neg_samples = torch.where(labels[:, -1] == 1)[0]
@@ -87,17 +89,17 @@ def save_evaluations_image(image, boxes, labels, count, config , save_dir):
         draw.rectangle(xy=box_location.numpy(), outline= color )
         draw.rectangle(xy=[l + 1. for l in box_location.numpy()], outline=color)  # a second rectangle at an offset of 1 pixel to increase line thickness
         # Text
-        if plot_labels :
-            name = config.rev_label_map[ind]
-            text_size = font.getsize(name)
-            text_location = [box_location[0] + 2., box_location[1] - text_size[1]]
-            textbox_location = [box_location[0], box_location[1] - text_size[1], box_location[0] + text_size[0] + 4.,
-                                box_location[1]]
-            draw.rectangle(xy=textbox_location, fill= color )
-            draw.text(xy=text_location, text=name, fill='white',font=font)
+        
+        name = config.rev_label_map[ind]
+        text_size = font.getsize(name)
+        text_location = [box_location[0] + 2., box_location[1] - text_size[1]]
+        textbox_location = [box_location[0], box_location[1] - text_size[1], box_location[0] + text_size[0] + 4.,
+                            box_location[1]]
+        draw.rectangle(xy=textbox_location, fill= color )
+        draw.text(xy=text_location, text=name, fill='white',font=font)
 
-    pos_image.save(str(count) + "_pos" + ".jpg") 
-    image.save(str(count) + "_neg" + ".jpg") 
+    pos_image.save(save_dir + str(count) + "_pos" + ".jpg") 
+    image.save(save_dir + str(count) + "_neg" + ".jpg") 
     # image.show()
     
 
