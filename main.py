@@ -17,7 +17,7 @@ from  model import Model_RPN , Classifier
 from tools import * 
 from utils import WarmupMultiStepLR 
 
-from dataset import Dataset , collate_fn
+from dataset import Dataset , collate_fn , Dataset_roi
 import torchvision.transforms as transforms
 
 from torch.autograd import Variable
@@ -182,15 +182,14 @@ all_possible_anchor_boxes_tensor = torch.tensor(all_possible_anchor_boxes)
 for i,(image, boxes, labels , temp, num_pos) in enumerate(train_loader):
             break
 
+
 y_is_box_label = temp[0]
 y_rpn_regr = temp[1]
-
-
 image = Variable(image)
 
 
 
-for i in range(25) :
+for i in range(15) :
     base_x , cls_k , reg_k = model_rpn(image)
     l1 = rpn_loss_regr(y_true=y_rpn_regr, y_pred=reg_k , y_is_box_label=y_is_box_label)
     l2 = rpn_loss_cls_fixed_num(y_pred = cls_k , y_is_box_label= y_is_box_label)
@@ -231,40 +230,49 @@ for b in range(args.train_batch):
             rpn_accuracy_for_epoch.append(0)
             continue
 
-    neg_samples = torch.where(Y1[:, -1] == 1)[0]
-    pos_samples = torch.where(Y1[:, -1] == 0)[0]
-    
-    
-    rpn_accuracy_rpn_monitor.append(pos_samples.size(0))
-    rpn_accuracy_for_epoch.append(pos_samples.size(0))
-
-    db = Dataset_roi(pos=pos_samples , neg= neg_samples)
-    roi_loader = DataLoader(db, shuffle=True,  
-        batch_size=args.n_roi // 2, num_workers=args.workers, pin_memory=pin_memory, drop_last=False)
-
-    for i,j in enumerate(roi_loader):
-        pos = j[0]
-        neg = j[1]
-        if pos == []:
-            rois = X2[neg]
-            base_x[b].unsqueeze(0)
-
-        elif neg == []:
+neg_samples = torch.where(Y1[:, -1] == 1)[0]
+pos_samples = torch.where(Y1[:, -1] == 0)[0]
 
 
+rpn_accuracy_rpn_monitor.append(pos_samples.size(0))
+rpn_accuracy_for_epoch.append(pos_samples.size(0))
+
+db = Dataset_roi(pos=pos_samples , neg= neg_samples)
+roi_loader = DataLoader(db, shuffle=True,  
+    batch_size=args.n_roi // 2, num_workers=args.workers, pin_memory=pin_memory, drop_last=False)
+
+for i,j in enumerate(roi_loader):
+    break 
+
+pos = j[0]
+neg = j[1]
+
+
+if type(pos) == list :
+    rois = X2[neg]
+    base_x = base_x[b].unsqueeze(0)
+    Y11 = Y1[neg]
+    Y22 = Y2[neg]
+    out_class , out_regr = model_classifier(base_x , rois)
+elif type(neg) == list :
+    rois = X2[pos]
+    base_x = base_x[b].unsqueeze(0)
+    out_class , out_regr = model_classifier(base_x , rois)
+    Y11 = Y1[pos]
+    Y22 = Y2[pos]
+else:
+    ind = torch.cat([pos,neg])
+    rois = X2[ind]
+    base_x = base_x[b].unsqueeze(0)
+    out_class , out_regr = model_classifier(base_x , rois)
+    Y11 = Y1[ind]
+    Y22 = Y2[ind]
 
 
 
-        
-        # note: calc_iou converts from (x1,y1,x2,y2) to (x,y,w,h) format
-        # X2: bboxes that iou > C.classifier_min_overlap for all gt bboxes in 300 non_max_suppression bboxes
-        # Y1: one hot code for bboxes from above => x_roi (X)
-        # Y2: corresponding labels and corresponding gt bboxes
-        
 
 
 
-         
 
 
 

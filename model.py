@@ -57,11 +57,10 @@ class Model_RPN(nn.Module):
 
 
 class Classifier(nn.Module):
-    def __init__(self, num_classes, num_rois=4, **kwargs):
+    def __init__(self, num_classes, **kwargs):
         super(Classifier, self).__init__()
         
         self.pooling_regions = 7
-        self.num_rois=num_rois 
         self.feat_dim = 2048
 
         self.red_conv_roi = nn.Conv2d(self.feat_dim, self.feat_dim//4 , 1 )
@@ -109,10 +108,7 @@ class Classifier(nn.Module):
         out_roi_pool = self.drop_d1(self.relu_d1(self.d1(out_roi_pool)))
         out_roi_pool = self.drop_d2(self.relu_d2(self.d2(out_roi_pool)))
 
-        out_class = self.softmax_d3(self.d3(red_out_roi_pool))
-        out_regr = self.d4(red_out_roi_pool)
+        out_class = self.softmax_d3(self.d3(out_roi_pool))
+        out_regr = self.d4(out_roi_pool)
 
         return out_class , out_regr
-
-
-
