@@ -79,13 +79,6 @@ def default_anchors(out_h, out_w, anchor_sizes, anchor_ratios, downscale):
     return A 
             
 
-
-
-
-
-
-
-
 class RPM():
     def __init__(self, anchor_sizes , anchor_ratios, valid_anchors, rev_label_map, rpn_max_overlap=0.7 , rpn_min_overlap=0.3, num_regions = 300 ):
         super(RPM, self).__init__()
@@ -392,7 +385,6 @@ def rpn_to_roi(cls_k, reg_k, no_anchors,  use_regr=True, max_boxes=300, overlap_
     all_probs = all_probs[id1]
 
     return non_max_suppression_fast(all_boxes, all_probs, overlap_thresh=overlap_thresh, max_boxes=max_boxes)[0]
-
 
 
 def calc_iou(rpn_rois, img_data, class_mapping , classifier_min_overlap=0.1 , classifier_max_overlap=0.5, classifier_regr_std = [8.0, 8.0, 4.0, 4.0] , debug=False):

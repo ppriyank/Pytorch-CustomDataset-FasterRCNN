@@ -11,7 +11,7 @@ from tools import RPM
 
 class Dataset(Dataset):
     
-    def __init__(self, data_folder , rpm, split, std_scaling=4.0, image_resize_size=None , debug=False):
+    def __init__(self, data_folder , rpm, split, std_scaling=4.0, image_resize_size=None , debug=False , data_format= 'bg_first' , save_evaluations= False):
         self.split = split.upper()
         assert self.split in {'TRAIN', 'TEST'}
         self.data_folder = data_folder
@@ -35,8 +35,10 @@ class Dataset(Dataset):
         self.std_scaling = std_scaling
         self.image_resize_size = image_resize_size
         self.debug = debug
+        self.data_format = data_format
+        self.save_evaluations = save_evaluations
 
-    def __getitem__(self, i, verify_image=False, data_format='bg_first' ):
+    def __getitem__(self, i, verify_image=False ):
         # Read image
         image = Image.open(self.images[i], mode='r')
         image = image.convert('RGB')
@@ -45,7 +47,7 @@ class Dataset(Dataset):
         objects = self.objects[i]
         boxes = objects['boxes']
         labels = objects['labels']
-        if data_format ==  'bg_first':
+        if self.data_format ==  'bg_first':
             labels = [l-1 for l in labels ]
 
         if verify_image:
@@ -72,7 +74,6 @@ class Dataset(Dataset):
         else:
             image = self.transform.normalize( self.transform.to_tensor(image) )
         
-
         return image, boxes, labels , [y_is_box_label, y_rpn_regr], num_pos
 
     def __len__(self):

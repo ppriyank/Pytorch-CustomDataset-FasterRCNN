@@ -70,11 +70,15 @@ parser.add_argument('--weight-decay', default=0.0005, type=float,
                     help="weight decay for the model")
 parser.add_argument('--gamma', default=0.1, type=float,
                     help="gamma for learning rate schedule")
+
 # image specs
 parser.add_argument('--height', type=int, default=800,
                     help="height of an image (default: 800)")
 parser.add_argument('--width', type=int, default=600,
                     help="width of an image (default: 600)")
+parser.add_argument('--data-format', type=str, default='bg_last',
+                    help="code is written with assumption that backgound class is at last, 'bg_first' handles the other way round")
+
 parser.add_argument('--anchor-sizes', default=None, type=list , help="anchor box sizes ")
 parser.add_argument('--anchor-ratio', default=[1,0.5,2], type=list , help="anchor box ratios " )
 # anchor box specs
@@ -93,6 +97,7 @@ parser.add_argument('--std_scaling', default=4.0, type=float,
                     help="scalling factor for regression ")
 parser.add_argument('--n-roi', type=int, default=20,
                     help="number of roi to train classifiers with")
+
 # loss scaling factor
 parser.add_argument('--lambda-rpn-regr', default=1.0, type=float,
                     help="scaling factor for the model rpn regression")
@@ -102,6 +107,7 @@ parser.add_argument('--lambda-cls-regr', default=1.0, type=float,
                     help="scaling factor for the model classifier regression loss")
 parser.add_argument('--lambda-cls-class', default=1.0, type=float,
                     help="scaling factor for the model classifier classification loss")
+
 # directory
 parser.add_argument('-s', '--save_dir', type=str, default='models/',
                     help="path of the model weights")
@@ -124,8 +130,24 @@ if use_gpu:
 else:
     device = 'cpu'
 
+
+
 height = args.height
 width = args.width
+
+
+if args.save_evaluations:
+    denormalize = {}
+
+    std = torch.tensor([[0.229, 0.224, 0.225]]).expand(height,3).unsqueeze(0).expand(width,height,3)
+    std = std.permute(2,1,0)
+
+    mean = torch.tensor([ [0.485, 0.456, 0.406] ]).expand(height,3).unsqueeze(0).expand(width,height,3)
+    mean = mean.permute(2,1,0)
+
+    denormalize['mean'] = mean.to(device=device)
+    denormalize['std'] = std.to(device=device)
+
 
 out_h , out_w = base_size_calculator (height  , width)
 
@@ -150,8 +172,8 @@ valid_anchors = valid_anchors(anchor_sizes,anchor_ratios , downscale , output_wi
 rpm = RPM(anchor_sizes , anchor_ratios, valid_anchors, config.rev_label_map, rpn_max_overlap=args.rpn_max_overlap , rpn_min_overlap= args.rpn_min_overlap , num_regions = args.thresold_num_region )
 
 
-dataset_train =  Dataset(data_folder=args.dataset, rpm=rpm, split='TRAIN', std_scaling=args.std_scaling, image_resize_size= (height, width),  debug= False)
-dataset_test =  Dataset(data_folder=args.dataset, rpm=rpm, split='TEST', std_scaling=args.std_scaling, image_resize_size= (height, width),  debug= False)
+dataset_train =  Dataset(data_folder=args.dataset, rpm=rpm, split='TRAIN', std_scaling=args.std_scaling, image_resize_size= (height, width),  debug= False , data_format= args.data_format)
+dataset_test =  Dataset(data_folder=args.dataset, rpm=rpm, split='TEST', std_scaling=args.std_scaling, image_resize_size= (height, width),  debug= False , data_format= args.data_format )
 
 # keep the number of workers greater than 4
 train_loader = DataLoader(
@@ -164,16 +186,11 @@ test_loader = DataLoader(
     batch_size=1, num_workers=args.workers, pin_memory=pin_memory, drop_last=True)
 
 
+
 # temp = next(iter(dataset_train))
 # sanity check 
 # list(train_loader)
 
-# state = {'model_rpn': model_rpn,
-#              'model_classifier': model_classifier,
-#              'optimizer_model_rpn': optimizer_model_rpn,
-#              'optimizer_classifier': optimizer_classifier, 
-#              'epoch': epoch
-#              }
 state = None 
 if args.pretrained:
     state=  load_checkpoint(args.save_dir , device=device)
@@ -397,6 +414,7 @@ def test(epoch):
     count_rpn  = 0 
     count_class = 0 
 
+    total_count = 0
 
     for i,(image, boxes, labels , temp, num_pos) in enumerate(train_loader):
         count_rpn +=1
@@ -435,52 +453,27 @@ def test(epoch):
                 rpn_accuracy_for_epoch.append(0)
                 continue
 
-            neg_samples = torch.where(Y1[:, -1] == 1)[0]
-            pos_samples = torch.where(Y1[:, -1] == 0)[0]
-
-            rpn_accuracy_rpn_monitor.append(pos_samples.size(0))
-            rpn_accuracy_for_epoch.append(pos_samples.size(0))
-
-            db = Dataset_roi(pos=pos_samples.cpu() , neg= neg_samples.cpu())
-            roi_loader = DataLoader(db, shuffle=True,  
-                batch_size=args.n_roi // 2, num_workers=args.workers, pin_memory=pin_memory, drop_last=False)
+            count_class += 1 
+            rpn_base = base_x[b].unsqueeze(0)
+            out_class , out_regr = model_classifier(base_x = rpn_base , rois= X2 )
             
-            for j,potential_roi in enumerate(roi_loader):
-                pos = potential_roi[0]
-                neg = potential_roi[1]
-                if type(pos) == list :
-                    rois = X2[neg]
-                    rpn_base = base_x[b].unsqueeze(0)
-                    Y11 = Y1[neg]
-                    Y22 = Y2[neg]
-                elif type(neg) == list :
-                    rois = X2[pos]
-                    rpn_base = base_x[b].unsqueeze(0)
-                    Y11 = Y1[pos]
-                    Y22 = Y2[pos]
-                else:
-                    ind = torch.cat([pos,neg])
-                    rois = X2[ind]
-                    rpn_base = base_x[b].unsqueeze(0)
-                    Y11 = Y1[ind]
-                    Y22 = Y2[ind]
+            l3 = class_loss_cls(y_true=Y1, y_pred=out_class , lambda_cls_class=args.lambda_cls_class)
+            l4 = class_loss_regr(y_true=Y2, y_pred= out_regr , lambda_cls_regr= args.lambda_cls_regr)
+            loss = l3 + l4 
+            class_class_loss += l3.item()   
+            regr_class_loss += l4.item()
+            total_class_loss += loss.item()
 
-                count_class += 1
-                rois = Variable(rois).to(device=device)
-                out_class , out_regr = model_classifier(base_x = rpn_base , rois= rois )
+            if args.save_evaluations :
+                total_count += 1
+                predicted_boxes = X2
+                predicted_boxes[:,2]  = predicted_boxes[:,2]  + predicted_boxes[:,0]
+                predicted_boxes[:,3]  = predicted_boxes[:,3]  + predicted_boxes[:,1]
+                predicted_boxes = predicted_boxes * downscale
                 
-                if args.save_evaluations :
-                    
+                temp_img = (denormalize['std'] * image[b]) + denormalize['mean']  
+                save_evaluations_image(image=temp_img, boxes=predicted_boxes, labels=Y1, count=total_count, config=config)
 
-                l3 = class_loss_cls(y_true=Y11, y_pred=out_class , lambda_cls_class=args.lambda_cls_class)
-                l4 = class_loss_regr(y_true=Y22, y_pred= out_regr , lambda_cls_regr= args.lambda_cls_regr)
-
-                regr_class_loss += l4.item()
-                class_class_loss += l3.item()   
-
-                loss = l3 + l4 
-                total_class_loss += loss.item()
-        
     
     if count_class == 0 :
         count_class = 1
@@ -501,22 +494,20 @@ def test(epoch):
 
 
 
-
-
 for i in range(start_epoch + 1 , args.max_epochs):
-    model_rpn.train()
-    model_classifier.train()    
-    train(i)
-    scheduler_rpn.step()
-    scheduler_class.step()
+    # model_rpn.train()
+    # model_classifier.train()    
+    # train(i)
+    # scheduler_rpn.step()
+    # scheduler_class.step()
     model_rpn.eval()
     model_classifier.eval()  
     total_loss = test(i)
-    if total_loss < best_error : 
-        save_checkpoint(i, model_rpn, model_classifier, optimizer_model_rpn, optimizer_classifier , best_error, save_dir=args.save_dir)
+    # if total_loss < best_error : 
+    #     save_checkpoint(i, model_rpn, model_classifier, optimizer_model_rpn, optimizer_classifier , best_error, save_dir=args.save_dir)
 
     print("=== {} === ".format(total_loss))  
-
+    break 
 print('Training complete, exiting.')
 
 

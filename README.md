@@ -87,6 +87,8 @@ For every model rpn predictions (tx, ty, tw, th) converted to most probable boun
 
 where n is the qualified number of anchor boxes. 
 
+## None Max Supression (Fast)
+
 
 ### Model
 

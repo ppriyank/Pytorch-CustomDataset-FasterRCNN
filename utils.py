@@ -35,6 +35,7 @@ def save_checkpoint(epoch, model_rpn, model_classifier, optimizer_model_rpn, opt
     if f != None :
         os.remove(os.path.join(save_dir, f))
 
+    print("Saving the model, best performance obtained at {}".format(epoch))
     filename = save_dir + str(epoch) +"_" + 'model.pth.tar'
     torch.save(state, filename)
     
