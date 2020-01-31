@@ -1,5 +1,7 @@
 import torch 
 import numpy as np 
+from bisect import bisect_right
+
 
 def clip_gradient(optimizer, grad_clip):
     for group in optimizer.param_groups:
