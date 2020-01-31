@@ -419,7 +419,7 @@ def calc_iou(rpn_rois, img_data, class_mapping , classifier_min_overlap=0.1 , cl
         best_box = -1
         
         best_iou , best_bbox = iou_tensor(x1, y1, x2, y2, boxes)
-        if best_bbox == -1 or best_iou < classifier_min_overlap :
+        if type(best_bbox) == int or best_iou < classifier_min_overlap :
             continue 
         else:
             w = x2 - x1
@@ -482,6 +482,6 @@ def calc_iou(rpn_rois, img_data, class_mapping , classifier_min_overlap=0.1 , cl
     # one hot code for bboxes from above => x_roi (X)
     Y1 = torch.tensor(y_class_num)
     # corresponding labels and corresponding gt bboxes
-    Y2 = torch.cat([torch.tensor(y_class_regr_label).float() , torch.tensor(y_class_regr_coords)], 1)
+    Y2 = torch.cat([torch.tensor(y_class_regr_label).float() , torch.tensor(y_class_regr_coords).float()], 1)
 
     return X, Y1, Y2, IoUs

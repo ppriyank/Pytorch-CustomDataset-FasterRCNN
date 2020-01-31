@@ -3,7 +3,7 @@ import torch.nn as nn
 
 from utils import tile 
 
-def rpn_loss_regr(y_true, y_pred , y_is_box_label , lambda_rpn_regr = 1.0 , epsilon = 1e-6):
+def rpn_loss_regr(y_true, y_pred , y_is_box_label , lambda_rpn_regr = 1.0 , epsilon = 1e-6, device='cpu'):
         # Smooth L1 loss function 
         #                    0.5*x*x (if x_abs < 1)
         #                    x_abx - 0.5 (otherwise)
@@ -20,7 +20,7 @@ def rpn_loss_regr(y_true, y_pred , y_is_box_label , lambda_rpn_regr = 1.0 , epsi
         x_abs = x_abs - 0.5
         # label 1 means positive box, label 0 means neutral and -1 means negative box
         # clamp min= 0, removes negative box error
-        y_is_box_label = tile(y_is_box_label, -1 , 4 ).clamp(min=0)
+        y_is_box_label = tile(y_is_box_label, -1 , 4 , device=device).clamp(min=0)
 
         loss = (y_is_box_label * x_abs).view(b,-1).sum(1) / (epsilon + y_is_box_label.view(b,-1).sum(1) )
         # loss = (y_is_box_label * x_abs).sum() / (epsilon + y_is_box_label.sum() )

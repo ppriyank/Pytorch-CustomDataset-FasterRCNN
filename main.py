@@ -98,6 +98,9 @@ parser.add_argument('--lambda-cls-regr', default=1.0, type=float,
                     help="scaling factor for the model classifier regression loss")
 parser.add_argument('--lambda-cls-class', default=1.0, type=float,
                     help="scaling factor for the model classifier classification loss")
+# directory
+parser.add_argument('-s', '--save_dir', type=str, default='models/',
+                    help="path of the model weights")
 
 
 
@@ -212,11 +215,15 @@ def train(epoch):
 
     for i,(image, boxes, labels , temp, num_pos) in enumerate(train_loader):
         count_rpn +=1
-        y_is_box_label = temp[0]
-        y_rpn_regr = temp[1]
-        image = Variable(image)
+
+        y_is_box_label = temp[0].to(device=device)
+        y_rpn_regr = temp[1].to(device=device)
+        image = Variable(image).to(device=device)
+        boxes = boxes
+
         base_x , cls_k , reg_k = model_rpn(image)
-        l1 = rpn_loss_regr(y_true=y_rpn_regr, y_pred=reg_k , y_is_box_label=y_is_box_label , lambda_rpn_regr=args.lambda_rpn_regr)
+        
+        l1 = rpn_loss_regr(y_true=y_rpn_regr, y_pred=reg_k , y_is_box_label=y_is_box_label , lambda_rpn_regr=args.lambda_rpn_regr , device=device)
         l2 = rpn_loss_cls_fixed_num(y_pred = cls_k , y_is_box_label= y_is_box_label , lambda_rpn_class = args.lambda_rpn_class)
         
         regr_rpn_loss += l1.item() 
@@ -229,8 +236,9 @@ def train(epoch):
         optimizer_model_rpn.step()                        
         with torch.no_grad():
             base_x , cls_k , reg_k = model_rpn(image)
-        img_data = {}
+        
         for b in range(args.train_batch):
+            img_data = {}
             with torch.no_grad():
                 # Convert rpn layer to roi bboxes
                 # cls_k.shape : b, h, w, 9
@@ -239,12 +247,13 @@ def train(epoch):
                 rpn_rois.to(device=device)
                 # can't concatenate batch 
                 # no of boxes may vary across the batch 
-                img_data["boxes"] = boxes[b] // downscale
+                img_data["boxes"] = boxes[b].to(device=device) // downscale
                 img_data['labels'] = labels[b]
                 # X2 are qualified anchor boxes from model_rpn (converted anochors)
                 # Y1 are the label, Y1[-1] is the background bounding box (negative bounding box), ambigous (neutral boxes are eliminated < min overlap thresold)
                 # Y2 is concat of 1 , tx, ty, tw, th and 0, tx, ty, tw, th 
                 X2, Y1, Y2, _ = calc_iou(rpn_rois, img_data, class_mapping=config.label_map )
+                
                 X2 = X2.to(device=device)
                 Y1 = Y1.to(device=device)
                 Y2 = Y2.to(device=device)
@@ -259,9 +268,10 @@ def train(epoch):
                 rpn_accuracy_rpn_monitor.append(pos_samples.size(0))
                 rpn_accuracy_for_epoch.append(pos_samples.size(0))
 
-            db = Dataset_roi(pos=pos_samples , neg= neg_samples)
+            db = Dataset_roi(pos=pos_samples.cpu() , neg= neg_samples.cpu())
             roi_loader = DataLoader(db, shuffle=True,  
                 batch_size=args.n_roi // 2, num_workers=args.workers, pin_memory=pin_memory, drop_last=False)
+            # list(roi_loader)
             for j,potential_roi in enumerate(roi_loader):
                 pos = potential_roi[0]
                 neg = potential_roi[1]
@@ -351,11 +361,13 @@ def test(epoch):
 
     for i,(image, boxes, labels , temp, num_pos) in enumerate(train_loader):
         count_rpn +=1
-        y_is_box_label = temp[0]
-        y_rpn_regr = temp[1]
-        image = Variable(image)
+        
+        y_is_box_label = temp[0].to(device=device)
+        y_rpn_regr = temp[1].to(device=device)
+        image = Variable(image).to(device=device)
+
         base_x , cls_k , reg_k = model_rpn(image)
-        l1 = rpn_loss_regr(y_true=y_rpn_regr, y_pred=reg_k , y_is_box_label=y_is_box_label , lambda_rpn_regr=args.lambda_rpn_regr)
+        l1 = rpn_loss_regr(y_true=y_rpn_regr, y_pred=reg_k , y_is_box_label=y_is_box_label , lambda_rpn_regr=args.lambda_rpn_regr, device=device)
         l2 = rpn_loss_cls_fixed_num(y_pred = cls_k , y_is_box_label= y_is_box_label , lambda_rpn_class = args.lambda_rpn_class)
         
         regr_rpn_loss += l1.item() 
@@ -370,10 +382,11 @@ def test(epoch):
             rpn_rois = rpn_to_roi(cls_k[b,:], reg_k[b,:], no_anchors=num_anchors,  all_possible_anchor_boxes=all_possible_anchor_boxes_tensor.clone() )
             rpn_rois.to(device=device)
 
-            img_data["boxes"] = boxes[b] // downscale
+            img_data["boxes"] = boxes[b].to(device=device) // downscale
             img_data['labels'] = labels[b]
 
             X2, Y1, Y2, _ = calc_iou(rpn_rois, img_data, class_mapping=config.label_map )
+            
             X2 = X2.to(device=device)
             Y1 = Y1.to(device=device)
             Y2 = Y2.to(device=device)
@@ -389,7 +402,7 @@ def test(epoch):
             rpn_accuracy_rpn_monitor.append(pos_samples.size(0))
             rpn_accuracy_for_epoch.append(pos_samples.size(0))
 
-            db = Dataset_roi(pos=pos_samples , neg= neg_samples)
+            db = Dataset_roi(pos=pos_samples.cpu() , neg= neg_samples.cpu())
             roi_loader = DataLoader(db, shuffle=True,  
                 batch_size=args.n_roi // 2, num_workers=args.workers, pin_memory=pin_memory, drop_last=False)
             
@@ -450,7 +463,9 @@ for i in range(20):
     scheduler_rpn.step()
     scheduler_class.step()
     model_rpn.eval()
-    model_classifier.eval()    
+    model_classifier.eval()  
+    total_loss = test(i)
+    print("=== {} === ".format(total_loss))  
 
 print('Training complete, exiting.')
 

@@ -11,12 +11,10 @@ Shaoqing Ren, Kaiming He, Ross Girshick, Jian Sun
 
 ### Todo :
 - [ ] saving model and loading model
-- [ ] GPU Compatibility
-- [ ] padding
+- [ ] saving test images
 - [ ] credits 
 - [ ] requirement.txt 
-- [ ] Save temp file for data loading  
-- [ ] training code 
+- [ ] Save temp file for data loading   
 - [ ] parallelize the code ?? : calc_rpn
 - [ ] create parsing json read/write functions
 - [ ] How to run and what changes to make ?? 

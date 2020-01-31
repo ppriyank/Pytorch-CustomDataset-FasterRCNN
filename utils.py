@@ -18,7 +18,7 @@ def save_checkpoint(epoch, model_rpn, model_classifier, optimizer_model_rpn, opt
              'epoch': epoch
              }
 
-    # filename = name + 'checkpoint_ssd300.pth.tar'
+    filename = name + 'checkpoint_ssd300.pth.tar'
     # # torch.save(state, filename)
     # # If this checkpoint is the best so far, store a copy so it doesn't get overwritten by a worse checkpoint
     # if is_best:
@@ -35,12 +35,12 @@ def save_checkpoint(epoch, model_rpn, model_classifier, optimizer_model_rpn, opt
 #     torch.save(state, fpath)
 
 
-def tile(a, dim, n_tile):
+def tile(a, dim, n_tile,device='cpu'):
     init_dim = a.size(dim)
     repeat_idx = [1] * a.dim()
     repeat_idx[dim] = n_tile
     a = a.repeat(*(repeat_idx))
-    order_index = torch.LongTensor(np.concatenate([init_dim * np.arange(n_tile) + i for i in range(init_dim)]))
+    order_index = torch.LongTensor(np.concatenate([init_dim * np.arange(n_tile) + i for i in range(init_dim)])).to(device=device)
     return torch.index_select(a, dim, order_index)
 
 
@@ -129,7 +129,7 @@ def iou_tensor(x1, y1, x2, y2, boxes):
     iou = intersection / (union + 1e-6)
     _, ind = iou.sort()
     
-    return  iou[ind[-1]].numpy() , main_ind[ind[-1]].numpy()
+    return  iou[ind[-1]] , main_ind[ind[-1]]
 
 
 
