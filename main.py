@@ -211,18 +211,17 @@ with torch.no_grad():
 
 img_data = {}
 for b in range(args.train_batch):
-    # Convert rpn layer to roi bboxes
-    # cls_k.shape : b, h, w, 9
-    # reg_k : b, h, w, 36
     with torch.no_grad():
+        # Convert rpn layer to roi bboxes
+        # cls_k.shape : b, h, w, 9
+        # reg_k : b, h, w, 36
         rpn_rois = rpn_to_roi(cls_k[b,:], reg_k[b,:], no_anchors=num_anchors,  all_possible_anchor_boxes=all_possible_anchor_boxes_tensor.clone() )
         # can't concatenate batch 
         # no of boxes may vary across the batch 
         img_data["boxes"] = boxes[b] // downscale
         img_data['labels'] = labels[b]
-
         # X2 are qualified anchor boxes from model_rpn (converted anochors)
-        # Y1 are the label, Y1[-1] is the background bounding box (negative bounding box), ambigous (neutral boxes are eliminated)
+        # Y1 are the label, Y1[-1] is the background bounding box (negative bounding box), ambigous (neutral boxes are eliminated < min overlap thresold)
         # Y2 
         X2, Y1, Y2, IouS = calc_iou(rpn_rois, img_data, class_mapping=config.label_map )
         break 
@@ -247,6 +246,8 @@ for b in range(args.train_batch):
         pos = j[0]
         neg = j[1]
         if pos == []:
+            rois = X2[neg]
+            base_x[b].unsqueeze(0)
 
         elif neg == []:
 
@@ -283,16 +284,7 @@ for epoch_num in range(num_epochs):
 
         
         
-        
-
-        # training_data: [X, X2[:, sel_samples, :]]
-        # labels: [Y1[:, sel_samples, :], Y2[:, sel_samples, :]]
-        #  X                     => img_data resized image
-        #  X2[:, sel_samples, :] => num_rois (4 in here) bboxes which contains selected neg and pos
-        #  Y1[:, sel_samples, :] => one hot encode for num_rois bboxes which contains selected neg and pos
-        #  Y2[:, sel_samples, :] => labels and gt bboxes for num_rois bboxes which contains selected neg and pos
-        loss_class = model_classifier.train_on_batch([X, X2[:, sel_samples, :]], [Y1[:, sel_samples, :], Y2[:, sel_samples, :]])
-
+    
         losses[iter_num, 0] = loss_rpn[1]
         losses[iter_num, 1] = loss_rpn[2]
 
@@ -300,7 +292,7 @@ for epoch_num in range(num_epochs):
         losses[iter_num, 3] = loss_class[2]
         losses[iter_num, 4] = loss_class[3]
         iter_num += 1
-        
+
 
         if iter_num == epoch_length:
             loss_rpn_cls = np.mean(losses[:, 0])
