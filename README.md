@@ -14,6 +14,7 @@ Shaoqing Ren, Kaiming He, Ross Girshick, Jian Sun
 - [ ] GPU Compatibility
 - [ ] padding
 - [ ] credits 
+- [ ] requirement.txt 
 - [ ] Save temp file for data loading  
 - [ ] training code 
 - [ ] parallelize the code ?? : calc_rpn

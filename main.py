@@ -196,7 +196,8 @@ all_possible_anchor_boxes = default_anchors(out_h=50, out_w=38, anchor_sizes=anc
 all_possible_anchor_boxes_tensor = torch.tensor(all_possible_anchor_boxes).to(device=device)
 
 
-def train(train_loader):
+def train(epoch):
+    print("Training epoch {}".format(epoch))
     rpn_accuracy_rpn_monitor = []
     rpn_accuracy_for_epoch = []
     
@@ -210,6 +211,8 @@ def train(train_loader):
 
     count_rpn  = 0 
     count_class = 0 
+
+
     for i,(image, boxes, labels , temp, num_pos) in enumerate(train_loader):
             count_rpn +=1
             y_is_box_label = temp[0]
@@ -223,7 +226,7 @@ def train(train_loader):
             class_rpn_loss += l2.item() 
             loss = l1 + l2 
             total_rpn_loss += loss.item()
-
+            
             optimizer_model_rpn.zero_grad()
             loss.backward()
             optimizer_model_rpn.step()                        
@@ -262,7 +265,7 @@ def train(train_loader):
                     db = Dataset_roi(pos=pos_samples , neg= neg_samples)
                     roi_loader = DataLoader(db, shuffle=True,  
                         batch_size=args.n_roi // 2, num_workers=args.workers, pin_memory=pin_memory, drop_last=False)
-                    for i,potential_roi in enumerate(roi_loader):
+                    for j,potential_roi in enumerate(roi_loader):
                         pos = potential_roi[0]
                         neg = potential_roi[1]
                         if type(pos) == list :
@@ -296,120 +299,38 @@ def train(train_loader):
 
                         loss = l3 + l4 
                         total_class_loss += loss.item()
-
+                        
                         
                         optimizer_classifier.zero_grad()
                         loss.backward()
                         optimizer_classifier.step()
 
+                    if count_class % args.display_class == 0 :
+                        if count_class == 0 :
+                            print('Classifier Model Classification loss: {} Regression loss: {} Total Loss: {}'.format(0,0,0))
+                        else:
+                            print('Classifier Model Classification loss: {} Regression loss: {} Total Loss: {} '.format(class_class_loss / count_class, regr_class_loss / count_class ,total_class_loss/ count_class ))
+
+    if i % args.display_rpn == 0 :
+        if len(rpn_accuracy_rpn_monitor) == 0 :
+            print('RPN is not producing bounding boxes that overlap the ground truth boxes. Check RPN settings or keep training.')
+        else:
+            mean_overlapping_bboxes = float(sum(rpn_accuracy_rpn_monitor))/len(rpn_accuracy_rpn_monitor)
+            print('Mean number of bounding boxes from RPN overlapping ground truth boxes: {}'.format(mean_overlapping_bboxes)) 
+        print('RPN Model Classification loss: {} Regression loss: {} Total Loss: {} '.format(class_rpn_loss / count_rpn, regr_rpn_loss / count_rpn ,total_rpn_loss/ count_rpn ))
 
 
 
-
-
-
-        if i % display_freq
-
-        mean_overlapping_bboxes = float(sum(rpn_accuracy_rpn_monitor))/len(rpn_accuracy_rpn_monitor)
-                
-
-
-
-
-
-
-
-
-    
-    
-
-
-
-
-
-
-
-
-
-
-
-
-
-        if len(rpn_accuracy_rpn_monitor) == epoch_length :
-            
-            rpn_accuracy_rpn_monitor = []
-#                 print('Average number of overlapping bounding boxes from RPN = {} for {} previous iterations'.format(mean_overlapping_bboxes, epoch_length))
-            if mean_overlapping_bboxes == 0:
-                print('RPN is not producing bounding boxes that overlap the ground truth boxes. Check RPN settings or keep training.')
-
-        
-        
-    
-        
-        if iter_num == epoch_length:
-            loss_rpn_cls = np.mean(losses[:, 0])
-            loss_rpn_regr = np.mean(losses[:, 1])
-            loss_class_cls = np.mean(losses[:, 2])
-            loss_class_regr = np.mean(losses[:, 3])
-            class_acc = np.mean(losses[:, 4])
-
-            mean_overlapping_bboxes = float(sum(rpn_accuracy_for_epoch)) / len(rpn_accuracy_for_epoch)
-            rpn_accuracy_for_epoch = []
-
-            if C.verbose:
-                print('Mean number of bounding boxes from RPN overlapping ground truth boxes: {}'.format(mean_overlapping_bboxes))
-                print('Classifier accuracy for bounding boxes from RPN: {}'.format(class_acc))
-                print('Loss RPN classifier: {}'.format(loss_rpn_cls))
-                print('Loss RPN regression: {}'.format(loss_rpn_regr))
-                print('Loss Detector classifier: {}'.format(loss_class_cls))
-                print('Loss Detector regression: {}'.format(loss_class_regr))
-                print('Total loss: {}'.format(loss_rpn_cls + loss_rpn_regr + loss_class_cls + loss_class_regr))
-                print('Elapsed time: {}'.format(time.time() - start_time))
-                elapsed_time = (time.time()-start_time)/60
-
-            curr_loss = loss_rpn_cls + loss_rpn_regr + loss_class_cls + loss_class_regr
-            iter_num = 0
-            
-            if curr_loss < best_loss:
-                if C.verbose:
-                    print('Total loss decreased from {} to {}, saving weights'.format(best_loss,curr_loss))
-                best_loss = curr_loss
-                model_all.save_weights(C.model_path)
-
-            new_row = {'mean_overlapping_bboxes':round(mean_overlapping_bboxes, 3), 
-                       'class_acc':round(class_acc, 3), 
-                       'loss_rpn_cls':round(loss_rpn_cls, 3), 
-                       'loss_rpn_regr':round(loss_rpn_regr, 3), 
-                       'loss_class_cls':round(loss_class_cls, 3), 
-                       'loss_class_regr':round(loss_class_regr, 3), 
-                       'curr_loss':round(curr_loss, 3), 
-                       'elapsed_time':round(elapsed_time, 3), 
-                       'mAP': 0}
-
-            record_df = record_df.append(new_row, ignore_index=True)
-            record_df.to_csv(record_path, index=0)
-            break
+for i in range(20):
+    train(i)
+    scheduler.step()
+    scheduler_rpn.step()
+    scheduler_class.step()
 
 print('Training complete, exiting.')
 
 
 
-
-total_epochs = 100
-r_epochs = 100
-
-epoch_length = 1000
-num_epochs = 40
-iter_num = 0
-
-total_epochs += num_epochs
-
-losses = np.zeros((epoch_length, 5))
-
-if len(record_df)==0:
-    best_loss = np.Inf
-else:
-    best_loss = np.min(r_curr_loss)
 
 
 
