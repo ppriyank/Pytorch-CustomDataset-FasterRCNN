@@ -1,6 +1,6 @@
 # Under Progress (Will be done by Jan End)
 # \[TUTORIAL\] Pytorch FasterRCNN (CustomDataset)
-Attempt to build Pytorch based FasterRCNN for custom dataset  ,
+Pytorch based FasterRCNN for custom dataset with explanation
 
 [PAPER](https://arxiv.org/pdf/1506.01497.pdf)
 ``` 
@@ -10,13 +10,10 @@ Shaoqing Ren, Kaiming He, Ross Girshick, Jian Sun
 
 
 ### Todo :
-- [ ] saving model and loading model
 - [ ] saving test images
-- [ ] credits 
 - [ ] requirement.txt 
 - [ ] Save temp file for data loading   
-- [ ] parallelize the code ?? : calc_rpn
-- [ ] create parsing json read/write functions
+- [ ] parallelize the code (calc_rpn function) ??  
 - [ ] How to run and what changes to make ?? 
 - [ ] Remove log from tw and th to check if performance changes??
 

@@ -1,7 +1,9 @@
 import torch 
 import numpy as np 
 from bisect import bisect_right
-
+import os 
+import os.path as osp
+import re 
 
 def clip_gradient(optimizer, grad_clip):
     for group in optimizer.param_groups:
@@ -10,29 +12,44 @@ def clip_gradient(optimizer, grad_clip):
                 param.grad.data.clamp_(-grad_clip, grad_clip)
 
 
-def save_checkpoint(epoch, model_rpn, model_classifier, optimizer_model_rpn, optimizer_classifier, name="_"):
+def check_file(dir):
+    matching_file = 'model.pth.tar'
+    for f in os.listdir(dir):
+        if re.search(matching_file, f):
+            return f
+    return None 
+
+def save_checkpoint(epoch, model_rpn, model_classifier, optimizer_model_rpn, optimizer_classifier , best_error , save_dir="./"):
     state = {'model_rpn': model_rpn,
              'model_classifier': model_classifier,
              'optimizer_model_rpn': optimizer_model_rpn,
              'optimizer_classifier': optimizer_classifier, 
-             'epoch': epoch
+             'epoch': epoch ,
+             'best_error' : best_error, 
              }
 
-    filename = name + 'checkpoint_ssd300.pth.tar'
-    # # torch.save(state, filename)
-    # # If this checkpoint is the best so far, store a copy so it doesn't get overwritten by a worse checkpoint
-    # if is_best:
-    #     torch.save(state, 'BEST_' + filename)
+    if not os.path.isdir(save_dir):
+        os.makedirs(save_dir)
+    
+    f = check_file(save_dir)
+    if f != None :
+        os.remove(os.path.join(save_dir, f))
 
+    filename = save_dir + str(epoch) +"_" + 'model.pth.tar'
+    torch.save(state, filename)
+    
 
-# def save_checkpoint(state, is_best, fpath='checkpoint.pth.tar'):
-#     mkdir_if_missing(osp.dirname(fpath))
-#     matching_file = fpath.split("ep")[0].split("/")[-1]
-#     dir_ =  osp.dirname(fpath)
-#     for f in os.listdir(dir_):
-#         if re.search(matching_file, f):
-#             os.remove(os.path.join(dir_, f))            
-#     torch.save(state, fpath)
+def load_checkpoint(save_dir="./" , device='cpu'):
+    if not os.path.isdir(save_dir):
+        os.makedirs(save_dir)
+    f = check_file(save_dir)
+    if f != None :
+        if device == 'cpu':
+            return torch.load(osp.join(save_dir, f) , map_location=torch.device('cpu')  )
+        else:
+            torch.load(osp.join(save_dir, f))
+    else :
+        return None 
 
 
 def tile(a, dim, n_tile,device='cpu'):

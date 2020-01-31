@@ -1,10 +1,8 @@
 
 import os
-import sys
 import argparse
-import numpy as np
 import math 
-import pickle
+
 
 import torch.backends.cudnn as cudnn
 import torch
@@ -12,10 +10,9 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from torch.autograd import Variable
 
-
 from  model import Model_RPN , Classifier
 from tools import * 
-from utils import WarmupMultiStepLR 
+from utils import WarmupMultiStepLR  , save_checkpoint , load_checkpoint
 
 from dataset import Dataset , collate_fn , Dataset_roi
 import torchvision.transforms as transforms
@@ -55,7 +52,14 @@ parser.add_argument('--display-rpn', default=1, type=int,
                     help="display frequency of performance of rpn model")
 parser.add_argument('--display-class', default=20, type=int,
                     help="display frequency of performance of classification model")
+parser.add_argument('--save-evaluations', action='store_true', default=False,
+                    help="if used, will save validation set images with boxes")
+parser.add_argument('--pretrained', action='store_true', default=False,
+                    help="if used, load pretrained weights")
+
 # training related specs
+parser.add_argument('-m-epochs', '--max-epochs', type=int, default=20,
+                    help="maximum number of epochs")
 parser.add_argument('-d', '--dataset', type=str, default='./',
                     help="path of the datatset...")
 parser.add_argument('-lr-rpn', '--learning-rate-rpn', default=0.0035, type=float,
@@ -164,30 +168,62 @@ test_loader = DataLoader(
 # sanity check 
 # list(train_loader)
 
-
-model_rpn = Model_RPN(num_anchors= len(anchor_sizes) * len(anchor_ratios) ).to(device=device)
-model_classifier = Classifier(num_classes=  len(config.voc_labels) ).to(device=device)
-
-
-weight_decay = args.weight_decay 
-params_class = []
-for key, value in model_classifier.named_parameters():
-    if not value.requires_grad:
-        continue
-    lr = args.learning_rate_classifier
-    params_class += [{"params": [value], "lr": lr, "weight_decay": weight_decay}]
-
-
-params_rpn = []
-for key, value in model_rpn.named_parameters():
-    if not value.requires_grad:
-        continue
-    lr = args.learning_rate_rpn
-    params_rpn += [{"params": [value], "lr": lr, "weight_decay": weight_decay}]
+# state = {'model_rpn': model_rpn,
+#              'model_classifier': model_classifier,
+#              'optimizer_model_rpn': optimizer_model_rpn,
+#              'optimizer_classifier': optimizer_classifier, 
+#              'epoch': epoch
+#              }
+state = None 
+if args.pretrained:
+    state=  load_checkpoint(args.save_dir , device=device)
+    if state == None :
+        print("==== No Pretrained weights found")
 
 
-optimizer_model_rpn = torch.optim.Adam(params_rpn)
-optimizer_classifier = torch.optim.Adam(params_class)
+if state == None :
+    print("loading from scratch \n\n\n\n") 
+    best_error = math.inf
+    start_epoch  = -1 
+
+    model_rpn = Model_RPN(num_anchors= len(anchor_sizes) * len(anchor_ratios) ).to(device=device)
+    model_classifier = Classifier(num_classes=  len(config.voc_labels) ).to(device=device)
+
+
+    weight_decay = args.weight_decay 
+    params_class = []
+    for key, value in model_classifier.named_parameters():
+        if not value.requires_grad:
+            continue
+        lr = args.learning_rate_classifier
+        params_class += [{"params": [value], "lr": lr, "weight_decay": weight_decay}]
+
+
+    params_rpn = []
+    for key, value in model_rpn.named_parameters():
+        if not value.requires_grad:
+            continue
+        lr = args.learning_rate_rpn
+        params_rpn += [{"params": [value], "lr": lr, "weight_decay": weight_decay}]
+
+
+    optimizer_model_rpn = torch.optim.Adam(params_rpn)
+    optimizer_classifier = torch.optim.Adam(params_class)
+
+else:
+    print("loading pretrained weights \n\n\n\n")
+    best_error = state['best_error']
+
+    model_rpn = state['model_rpn'].to(device=device)
+    model_classifier = state['model_classifier'].to(device=device)
+
+    optimizer_model_rpn = state['optimizer_model_rpn']
+    optimizer_classifier = state['optimizer_classifier']
+    
+    start_epoch  = state['epoch']
+
+
+
 scheduler_rpn = WarmupMultiStepLR(optimizer_model_rpn, milestones=[40, 70], gamma=args.gamma, warmup_factor=0.01, warmup_iters=10)
 scheduler_class = WarmupMultiStepLR(optimizer_classifier, milestones=[40, 70], gamma=args.gamma, warmup_factor=0.01, warmup_iters=10)
 
@@ -326,7 +362,8 @@ def train(epoch):
                 print('[RPN] Mean number of bounding boxes from RPN overlapping ground truth boxes: {}'.format(mean_overlapping_bboxes)) 
             print('[RPN] RPN Ex: {}-th RPN Model Classification loss: {} Regression loss: {} Total Loss: {} '.format(i ,class_rpn_loss / count_rpn, regr_rpn_loss / count_rpn ,total_rpn_loss/ count_rpn ))
 
-    print("-- END OF EPOCH -- ") 
+    print("-- END OF EPOCH -- {}".format(epoch)) 
+    print("------------------------------" ) 
     print('[RPN] RPN Ex: {}-th RPN Model Classification loss: {} Regression loss: {} Total Loss: {} '.format(i ,class_rpn_loss / count_rpn, regr_rpn_loss / count_rpn ,total_rpn_loss/ count_rpn ))
     if count_class == 0 :
         print('[Classifier] RPN Ex: {}-th ,Batch : {}, Anchor Box: {}-th, Classifier Model Classification loss: {} Regression loss: {} Total Loss: {}'.format(i,b,j,0,0,0))
@@ -338,12 +375,14 @@ def train(epoch):
         mean_overlapping_bboxes = float(sum(rpn_accuracy_rpn_monitor))/len(rpn_accuracy_rpn_monitor)
         print('[RPN] Mean number of bounding boxes from RPN overlapping ground truth boxes: {}'.format(mean_overlapping_bboxes)) 
     print('Total Loss  {}'.format(  total_class_loss/ count_class + total_rpn_loss/ count_rpn ))
-
+    print("------------------------------" ) 
 
 
 
 def test(epoch):
+    print("================================")
     print("Testing after epoch {}".format(epoch))
+    print("================================")
     rpn_accuracy_rpn_monitor = []
     rpn_accuracy_for_epoch = []
     
@@ -430,6 +469,9 @@ def test(epoch):
                 rois = Variable(rois).to(device=device)
                 out_class , out_regr = model_classifier(base_x = rpn_base , rois= rois )
                 
+                if args.save_evaluations :
+                    
+
                 l3 = class_loss_cls(y_true=Y11, y_pred=out_class , lambda_cls_class=args.lambda_cls_class)
                 l4 = class_loss_regr(y_true=Y22, y_pred= out_regr , lambda_cls_regr= args.lambda_cls_regr)
 
@@ -456,7 +498,12 @@ def test(epoch):
     
     return total_class_loss/ count_class + total_rpn_loss/ count_rpn
 
-for i in range(20):
+
+
+
+
+
+for i in range(start_epoch + 1 , args.max_epochs):
     model_rpn.train()
     model_classifier.train()    
     train(i)
@@ -465,6 +512,9 @@ for i in range(20):
     model_rpn.eval()
     model_classifier.eval()  
     total_loss = test(i)
+    if total_loss < best_error : 
+        save_checkpoint(i, model_rpn, model_classifier, optimizer_model_rpn, optimizer_classifier , best_error, save_dir=args.save_dir)
+
     print("=== {} === ".format(total_loss))  
 
 print('Training complete, exiting.')

@@ -192,7 +192,6 @@ class Dataset_roi(Dataset):
 
         elif self.neg.size(0) == 0 : 
             return self.pos[i] , []
-
         else:
             if min(self.pos.size(0) , self.neg.size(0)) == self.pos.size(0):
                 self.curr += 1
