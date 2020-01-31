@@ -395,7 +395,7 @@ def rpn_to_roi(cls_k, reg_k, no_anchors,  use_regr=True, max_boxes=300, overlap_
 
 
 
-def calc_iou(rpn_rois, img_data, class_mapping , classifier_min_overlap=0.1 , classifier_max_overlap=0.5, classifier_regr_std = [8.0, 8.0, 4.0, 4.0]):
+def calc_iou(rpn_rois, img_data, class_mapping , classifier_min_overlap=0.1 , classifier_max_overlap=0.5, classifier_regr_std = [8.0, 8.0, 4.0, 4.0] , debug=False):
     """Converts from (x1,y1,x2,y2) to (x,y,w,h) format
 
     Args:
@@ -425,7 +425,8 @@ def calc_iou(rpn_rois, img_data, class_mapping , classifier_min_overlap=0.1 , cl
             w = x2 - x1
             h = y2 - y1
             x_roi.append([x1, y1, w, h])
-            IoUs.append((best_iou , best_bbox))
+            if debug:
+                IoUs.append((best_iou , best_bbox))
             if classifier_min_overlap <= best_iou and best_iou < classifier_max_overlap:
                 # hard negative example
                 cls_name = 'bg'

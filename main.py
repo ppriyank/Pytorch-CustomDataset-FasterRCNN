@@ -45,6 +45,7 @@ config = Config()
 
 
 parser = argparse.ArgumentParser(description='Faster RCNN (Custom Dataset)')
+# basic running parameters 
 parser.add_argument('--train-batch', default=2, type=int,
                     help="train batch size")
 parser.add_argument('--workers', default=8, type=int,
@@ -53,8 +54,11 @@ parser.add_argument('--seed', default=1, type=int,
                     help="# seed")
 parser.add_argument('--gpu-devices', default="0,1", type=str,
                     help="# of gpu devices")
-
-
+parser.add_argument('--display-rpn', default=10, type=int,
+                    help="display frequency of performance of rpn model")
+parser.add_argument('--display-class', default=2, type=int,
+                    help="display frequency of performance of classification model")
+# training related specs
 parser.add_argument('-d', '--dataset', type=str, default='./',
                     help="path of the datatset...")
 parser.add_argument('-lr-rpn', '--learning-rate-rpn', default=0.0035, type=float,
@@ -65,34 +69,38 @@ parser.add_argument('--weight-decay', default=0.0005, type=float,
                     help="weight decay for the model")
 parser.add_argument('--gamma', default=0.1, type=float,
                     help="gamma for learning rate schedule")
-
-
+# image specs
 parser.add_argument('--height', type=int, default=800,
                     help="height of an image (default: 800)")
 parser.add_argument('--width', type=int, default=600,
                     help="width of an image (default: 600)")
-
 parser.add_argument('--anchor-sizes', default=None, type=list , help="anchor box sizes ")
 parser.add_argument('--anchor-ratio', default=[1,0.5,2], type=list , help="anchor box ratios " )
-parser.add_argument('--classifier-regr-std', default=[8.0, 8.0, 4.0, 4.0], type=list , help="scaling factor for tx,ty,tw and th for model classifier" )
-
+# anchor box specs
 parser.add_argument('--rpn-min-overlap', default=0.3, type=float,
                     help="min overlap")
 parser.add_argument('--rpn-max-overlap', default=0.7, type=float,
                     help="max overlap with ground truth ")
+parser.add_argument('--classifier-min-overlap', default=0.1, type=float,
+                    help="min overlap for anchor box qualification")
+parser.add_argument('--classifier-max-overlap', default=0.5, type=float,
+                    help="frequency thresold after which anchor box is declared positive")
 parser.add_argument('--thresold-num-region', default=300, type=int,
                     help="limiting the number of positive + negative anchor boxes to thresold-num-region")
-
-
+parser.add_argument('--classifier-regr-std', default=[8.0, 8.0, 4.0, 4.0], type=list , help="scaling factor for tx,ty,tw and th for model classifier" )
 parser.add_argument('--std_scaling', default=4.0, type=float,
                     help="scalling factor for regression ")
 parser.add_argument('--n-roi', type=int, default=20,
                     help="number of roi to train classifiers with")
-
-
+# loss scaling factor
 parser.add_argument('--lambda-rpn-regr', default=1.0, type=float,
                     help="scaling factor for the model rpn regression")
-
+parser.add_argument('--lambda-rpn-class', default=1.0, type=float,
+                    help="scaling factor for the model rpn classification loss")
+parser.add_argument('--lambda-cls-regr', default=1.0, type=float,
+                    help="scaling factor for the model classifier regression loss")
+parser.add_argument('--lambda-cls-class', default=1.0, type=float,
+                    help="scaling factor for the model classifier classification loss")
 
 
 
@@ -152,6 +160,11 @@ test_loader = DataLoader(
     batch_size=1, num_workers=args.workers, pin_memory=pin_memory, drop_last=True)
 
 
+# temp = next(iter(dataset_train))
+# sanity check 
+# list(train_loader)
+
+
 model_rpn = Model_RPN(num_anchors= len(anchor_sizes) * len(anchor_ratios) ).to(device=device)
 model_classifier = Classifier(num_classes=  len(config.voc_labels) ).to(device=device)
 
@@ -182,20 +195,6 @@ scheduler_class = WarmupMultiStepLR(optimizer_classifier, milestones=[40, 70], g
 all_possible_anchor_boxes = default_anchors(out_h=50, out_w=38, anchor_sizes=anchor_sizes , anchor_ratios=anchor_ratios , downscale=16)
 all_possible_anchor_boxes_tensor = torch.tensor(all_possible_anchor_boxes).to(device=device)
 
-.to(device=device)
-
-
-
-lambda_rpn_class = 1.0
-
-lambda_cls_regr = 1.0
-lambda_cls_class = 1.0
-
-classifier_min_overlap = 0.1
-classifier_max_overlap = 0.5
-
-
-
 
 def train(train_loader):
     rpn_accuracy_rpn_monitor = []
@@ -210,6 +209,7 @@ def train(train_loader):
     total_class_loss = 0     
 
     count_rpn  = 0 
+    count_class = 0 
     for i,(image, boxes, labels , temp, num_pos) in enumerate(train_loader):
             count_rpn +=1
             y_is_box_label = temp[0]
@@ -217,7 +217,7 @@ def train(train_loader):
             image = Variable(image)
             base_x , cls_k , reg_k = model_rpn(image)
             l1 = rpn_loss_regr(y_true=y_rpn_regr, y_pred=reg_k , y_is_box_label=y_is_box_label , lambda_rpn_regr=args.lambda_rpn_regr)
-            l2 = rpn_loss_cls_fixed_num(y_pred = cls_k , y_is_box_label= y_is_box_label)
+            l2 = rpn_loss_cls_fixed_num(y_pred = cls_k , y_is_box_label= y_is_box_label , lambda_rpn_class = args.lambda_rpn_class)
             
             regr_rpn_loss += l1.item() 
             class_rpn_loss += l2.item() 
@@ -244,7 +244,11 @@ def train(train_loader):
                     # X2 are qualified anchor boxes from model_rpn (converted anochors)
                     # Y1 are the label, Y1[-1] is the background bounding box (negative bounding box), ambigous (neutral boxes are eliminated < min overlap thresold)
                     # Y2 is concat of 1 , tx, ty, tw, th and 0, tx, ty, tw, th 
-                    X2, Y1, Y2, IouS = calc_iou(rpn_rois, img_data, class_mapping=config.label_map )
+                    X2, Y1, Y2, _ = calc_iou(rpn_rois, img_data, class_mapping=config.label_map )
+                    X2 = X2.to(device=device)
+                    Y1 = Y1.to(device=device)
+                    Y2 = Y2.to(device=device)
+
                     # If X2 is None means there are no matching bboxes
                     if X2 is None:
                         rpn_accuracy_rpn_monitor.append(0)
@@ -280,12 +284,20 @@ def train(train_loader):
                             #out_class:  args.n_roi , # no of class
                             Y11 = Y1[ind]
                             Y22 = Y2[ind]
-                        rois = Variable(rois)
+                        count_class += 1
+                        rois = Variable(rois).to(device=device)
                         out_class , out_regr = model_classifier(base_x , rois)
-                        l3 = class_loss_cls(y_true=Y11, y_pred=out_class)
-                        l4 = class_loss_regr(y_true=Y22, y_pred= out_regr )
+                        
+                        l3 = class_loss_cls(y_true=Y11, y_pred=out_class , lambda_cls_class=args.lambda_cls_class)
+                        l4 = class_loss_regr(y_true=Y22, y_pred= out_regr , lambda_cls_regr= args.lambda_cls_regr)
+
+                        regr_class_loss += l4.item()
+                        class_class_loss += l3.item()   
+
                         loss = l3 + l4 
-                        print(loss.item())
+                        total_class_loss += loss.item()
+
+                        
                         optimizer_classifier.zero_grad()
                         loss.backward()
                         optimizer_classifier.step()
@@ -296,7 +308,9 @@ def train(train_loader):
 
 
 
+        if i % display_freq
 
+        mean_overlapping_bboxes = float(sum(rpn_accuracy_rpn_monitor))/len(rpn_accuracy_rpn_monitor)
                 
 
 
@@ -321,13 +335,8 @@ def train(train_loader):
 
 
 
-
-         
-for epoch_num in range(num_epochs):
-    r_epochs += 1
-    while True:
         if len(rpn_accuracy_rpn_monitor) == epoch_length :
-            mean_overlapping_bboxes = float(sum(rpn_accuracy_rpn_monitor))/len(rpn_accuracy_rpn_monitor)
+            
             rpn_accuracy_rpn_monitor = []
 #                 print('Average number of overlapping bounding boxes from RPN = {} for {} previous iterations'.format(mean_overlapping_bboxes, epoch_length))
             if mean_overlapping_bboxes == 0:
@@ -382,27 +391,6 @@ for epoch_num in range(num_epochs):
             break
 
 print('Training complete, exiting.')
-
-
-
-
-
-# temp = next(iter(dataset_train))
-# sanity check 
-# list(train_loader)
-
-
-epsilon = 1e-4
-
-num_rois = 4 # Number of RoIs to process at once.
-
-
-
-
-
-
-
-model_all.compile(optimizer='sgd', loss='mae')
 
 
 
