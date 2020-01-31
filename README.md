@@ -11,8 +11,7 @@ Shaoqing Ren, Kaiming He, Ross Girshick, Jian Sun
 ### Todo :
 - [ ] saving model and loading model
 - [ ] class loss
-- [ ] calc_iou
-- [ ] apply_regr
+- [ ] GPU Compatibility
 - [ ] padding
 - [ ] credits 
 - [ ] Save temp file for data loading  
@@ -81,6 +80,15 @@ How anchor boxes look like :
 
 Model predicts : reg_k : (tx, ty, tw, th) : given all the possible anchor boxes, one can estimate the model's predicted anchor boxes (model can't predict coordinates of anchor boxes apprently).
 
+### CALC IOU (calc_iou function)
+
+For every model rpn predictions (tx, ty, tw, th) converted to most probable bounding (anchor) boxes, closest GT anchor box is associated. For the anchor box to be **qualified anchor box**, only if iou is greater than 0.1. If Iou is > 0.5 (positive anchor box ), If 0.1 < iou < 0.5 negative bounding box and less than <0.1 is ambigious (ignored). For positive boxes [tx, ty, tw, th] is calculated (used for training the mdoel). It returns 
+* X : Positive/Negative anchor boxes (n , 4)  
+* Y1 : Label of the ground truth of anchor box associated withe qualified bounding boxes (n , # of classes)
+* Y2  : concatenation of the labels : 1 if positive else 0 (n,4 * (# of class - 1) ) labels per class and 4 times because of the 4 values (tx, ty, tw, th) associated with the anchor boxes : (n,4 * (# of class - 1)).
+
+where n is the qualified number of anchor boxes. 
+
 
 ### Model
 
@@ -98,3 +106,7 @@ It returns 3 tensors : base_x , cls_k , reg_k.
 
 
 ##### Classifier
+
+For every qualified anchor boxes from model_rpn (in calc_iou function),   
+* Model is tasked to predict the class inside that qualified anchor box. 
+* Model is tasked to predict the (tx, ty, tw, th), the values of deviation of the anchor box from the actual GT anchor box. 

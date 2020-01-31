@@ -21,10 +21,10 @@ from dataset import Dataset , collate_fn , Dataset_roi
 import torchvision.transforms as transforms
 
 from torch.autograd import Variable
-from loss import rpn_loss_regr , rpn_loss_cls_fixed_num 
+from loss import rpn_loss_regr , rpn_loss_cls_fixed_num  , class_loss_cls , class_loss_regr
 
 
-
+to(torch.device('cuda'))
 
 class Config(object):
     """docstring for config"""
@@ -221,7 +221,7 @@ for b in range(args.train_batch):
         img_data['labels'] = labels[b]
         # X2 are qualified anchor boxes from model_rpn (converted anochors)
         # Y1 are the label, Y1[-1] is the background bounding box (negative bounding box), ambigous (neutral boxes are eliminated < min overlap thresold)
-        # Y2 
+        # Y2 is concat of 1 , tx, ty, tw, th and 0, tx, ty, tw, th 
         X2, Y1, Y2, IouS = calc_iou(rpn_rois, img_data, class_mapping=config.label_map )
         break 
         # If X2 is None means there are no matching bboxes
@@ -253,24 +253,48 @@ if type(pos) == list :
     base_x = base_x[b].unsqueeze(0)
     Y11 = Y1[neg]
     Y22 = Y2[neg]
-    out_class , out_regr = model_classifier(base_x , rois)
+    # out_class : args.n_roi // 2 , # no of class
 elif type(neg) == list :
     rois = X2[pos]
     base_x = base_x[b].unsqueeze(0)
-    out_class , out_regr = model_classifier(base_x , rois)
+    #out_class :  args.n_roi // 2 , # no of class
     Y11 = Y1[pos]
     Y22 = Y2[pos]
 else:
     ind = torch.cat([pos,neg])
     rois = X2[ind]
     base_x = base_x[b].unsqueeze(0)
-    out_class , out_regr = model_classifier(base_x , rois)
+    #out_class:  args.n_roi , # no of class
     Y11 = Y1[ind]
     Y22 = Y2[ind]
 
 
+rois = Variable(rois)
 
 
+
+
+for i in range(15) :
+    out_class , out_regr = model_classifier(base_x , rois)
+    l3 = class_loss_cls(y_true=Y11, y_pred=out_class)
+    l4 = class_loss_regr(y_true=Y22, y_pred= out_regr )
+    loss = l3 + l4 
+    print(loss.item())
+    optimizer_classifier.zero_grad()
+    loss.backward()
+    optimizer_classifier.step()
+
+    
+
+
+
+losses[iter_num, 0] = 
+losses[iter_num, 1] = loss_rpn[2]
+
+losses[iter_num, 2] = loss_class[1]
+losses[iter_num, 3] = loss_class[2]
+losses[iter_num, 4] = loss_class[3]
+iter_num += 1
 
 
 
@@ -293,15 +317,7 @@ for epoch_num in range(num_epochs):
         
         
     
-        losses[iter_num, 0] = loss_rpn[1]
-        losses[iter_num, 1] = loss_rpn[2]
-
-        losses[iter_num, 2] = loss_class[1]
-        losses[iter_num, 3] = loss_class[2]
-        losses[iter_num, 4] = loss_class[3]
-        iter_num += 1
-
-
+        
         if iter_num == epoch_length:
             loss_rpn_cls = np.mean(losses[:, 0])
             loss_rpn_regr = np.mean(losses[:, 1])
@@ -398,53 +414,6 @@ if len(record_df)==0:
 else:
     best_loss = np.min(r_curr_loss)
 
-
-
-
-
-
-# with open('image.pickle', 'wb') as handle:
-#     pickle.dump(list(image.numpy()), handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-# with open('boxes.pickle', 'wb') as handle:
-#     pickle.dump( list(boxes[0].numpy())  , handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-# with open('labels.pickle', 'wb') as handle:
-#     pickle.dump( list(labels[0].numpy())  , handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-# with open('y_rpn_regr.pickle', 'wb') as handle:
-#     pickle.dump( list(y_rpn_regr.numpy())  , handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-# with open('y_is_box_label.pickle', 'wb') as handle:
-#     pickle.dump( list(y_is_box_label.numpy())  , handle, protocol=pickle.HIGHEST_PROTOCOL)
-
-
-with open('image.pickle', 'rb') as handle:
-    image = pickle.load(handle)
-
-
-with open('boxes.pickle', 'rb') as handle:
-    boxes = pickle.load(handle)
-
-with open('labels.pickle', 'rb') as handle:
-    labels = pickle.load(handle)
-
-with open('y_is_box_label.pickle', 'rb') as handle:
-    y_is_box_label = pickle.load(handle)
-
-with open('y_rpn_regr.pickle', 'rb') as handle:
-    y_rpn_regr = pickle.load(handle)
-
-
-image = torch.tensor(image)
-boxes = torch.tensor(boxes)
-labels = torch.tensor(labels)
-y_is_box_label = torch.tensor(y_is_box_label)
-y_rpn_regr = torch.tensor(y_rpn_regr)
-
-y_is_box_label = y_is_box_label.squeeze(0)
-y_rpn_regr = y_rpn_regr.squeeze(0)
-num_pos = 31
 
 
 

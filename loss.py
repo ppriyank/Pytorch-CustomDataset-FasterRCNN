@@ -13,8 +13,8 @@ def rpn_loss_regr(y_true, y_pred , y_is_box_label , lambda_rpn_regr = 1.0):
          # similarly other labels replicated 4 times 
         b = y_true.size(0)
         epsilon = 1e-6
-        x = y_true - y_pred
-        x_abs = torch.abs(x)
+        x_abs = y_true - y_pred
+        x_abs = torch.abs(x_abs)
         index_small = torch.where(x_abs <= 1 )
         
         x_abs[index_small] = torch.pow(x_abs[index_small], 2) /  2 + 0.5
@@ -44,34 +44,38 @@ def rpn_loss_cls_fixed_num(y_pred, y_is_box_label , lambda_rpn_class=1.0):
         return lambda_rpn_class * loss.mean()
 
 
-def Mean_absolute_Error(y_pred, y_true ):        
-        return torch.abs(y_pred - y_true).mean()
+
+def class_loss_cls(y_true, y_pred , lambda_cls_class= 1.0 , epsilon=1e-4):
+    y_true = y_true.float()
+    log_probs = (y_pred + epsilon ).log()
+    num_classes  = y_true.size(1)
+    # label smoothing 
+    y_true = (1 - epsilon) * y_true + epsilon / num_classes
+    loss = (- y_true * log_probs).mean(0).sum()
+    return lambda_cls_class * loss
 
 
 
-
-# class cross entropy
-
-def class_loss_regr(num_classes):
+def class_loss_regr(y_true, y_pred , epsilon=1e-6 , lambda_cls_regr= 1.0):
     """Loss function for rpn regression
-    Args:
-        num_anchors: number of anchors (9 in here)
-    Returns:
         Smooth L1 loss function 
                            0.5*x*x (if x_abs < 1)
                            x_abx - 0.5 (otherwise)
-    """
-    def class_loss_regr_fixed_num(y_true, y_pred):
-        x = y_true[:, :, 4*num_classes:] - y_pred
-        x_abs = K.abs(x)
-        x_bool = K.cast(K.less_equal(x_abs, 1.0), 'float32')
-        return lambda_cls_regr * K.sum(y_true[:, :, :4*num_classes] * (x_bool * (0.5 * x * x) + (1 - x_bool) * (x_abs - 0.5))) / K.sum(epsilon + y_true[:, :, :4*num_classes])
-    return class_loss_regr_fixed_num
+    """    
+    num_classes = y_pred.size(1) // 4
+    x_abs = y_true[ :, 4*num_classes:] - y_pred
+    x_abs = x_abs.abs()
+
+    index_small = torch.where(x_abs <= 1 )
+    x_abs[index_small] = torch.pow(x_abs[index_small], 2) /  2 + 0.5
+    x_abs = x_abs - 0.5
+
+    loss = (y_true[ :, :4*num_classes] * x_abs).sum() / (epsilon + y_true[ :, :4*num_classes].sum() )
+
+    return lambda_cls_regr * loss
+
+        
 
 
-
-def class_loss_cls(y_true, y_pred):
-    return lambda_cls_class * K.mean(categorical_crossentropy(y_true[0, :, :], y_pred[0, :, :]))
-
-
-
+def Mean_absolute_Error(y_pred, y_true ):        
+        return torch.abs(y_pred - y_true).mean()
