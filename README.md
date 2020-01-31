@@ -1,3 +1,4 @@
+# Under Progress (Will be done by Jan End)
 # \[TUTORIAL\] Pytorch FasterRCNN (CustomDataset)
 Attempt to build Pytorch based FasterRCNN for custom dataset  ,
 
@@ -10,7 +11,6 @@ Shaoqing Ren, Kaiming He, Ross Girshick, Jian Sun
 
 ### Todo :
 - [ ] saving model and loading model
-- [ ] class loss
 - [ ] GPU Compatibility
 - [ ] padding
 - [ ] credits 
