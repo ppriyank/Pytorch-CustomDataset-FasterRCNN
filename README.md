@@ -32,11 +32,27 @@ Tutorial / Credits / Source :  [source](https://towardsdatascience.com/faster-r-
 
 ## Custom Dataset
 
+* Create 2 json files for each set (train, validation, test)  (I have only test and train set so 4 json files)    
+Converting dict to json [GUIDE](https://github.com/ppriyank/Object-Detection-Custom-Dataset-pytorch/blob/master/annotation.py)
+* Naming convention : `TRAIN_images.json`, `TRAIN_objects.json`, `TEST_images.json`, `TEST_objects.json`    
+* `TRAIN_images.json` contains path to various images, e.g. : ["../class_pics/IMG_0.jpg", "../class_pics/IMG_1.jpg" ... ]  
+* `TRAIN_objects.json` contains list of dictionaries, i-th dictionary corresponding to i-th image in the  `TRAIN_images.json`.   
+Each dictinoary contains keys :   
+**boxes** : list of all bounding boxes: [xmin, ymin, xmax, ymax])   
+**labels**  : list of labels corresponding to each bounding box
+
+#### Note 
+* Please note background class is the last index, that means you indexing of classes should with 0  
+* Sample `TEST_images.json`, `TEST_objects.json` have been uploaded  
+* I have removed difficulty tag, don't need 
+* just changes the desired labels in config class in main.py according to your new label set.
+
+In case of error, raise an issue :) 
 
 
 ### Perfroamnce :  
 Sample training image, after training the model for 10 epcohs for a dataset of 17 images with imbalanced bounding boxes
-<img src="https://github.com/ppriyank/Pytorch-CustomDataset-FasterRCNN/blob/master/images/ratiologic.jpg" width="900">
+<img src="https://github.com/ppriyank/Pytorch-CustomDataset-FasterRCNN/blob/master/images/performance.jpg" width="900">
 
 
 
