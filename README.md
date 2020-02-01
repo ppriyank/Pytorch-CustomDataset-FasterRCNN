@@ -1,4 +1,3 @@
-# Under Progress (Will be done by Jan End)
 # \[TUTORIAL\] Pytorch FasterRCNN (CustomDataset)
 Pytorch based FasterRCNN for custom dataset with explanation
 
@@ -10,7 +9,6 @@ Shaoqing Ren, Kaiming He, Ross Girshick, Jian Sun
 
 
 ### Todo :
-- [ ] saving test images
 - [ ] requirement.txt 
 - [ ] Save temp file for data loading   
 - [ ] parallelize the code (calc_rpn function) ??  
@@ -33,6 +31,12 @@ Tutorial / Credits / Source :  [source](https://towardsdatascience.com/faster-r-
 * `model.py` is the collections of 2 simple models (most important manipulation of Faster RCNN comes from `tools.py`). 
 
 ## Custom Dataset
+
+
+
+### Perfroamnce :  
+Sample training image, after training the model for 10 epcohs for a dataset of 17 images with imbalanced bounding boxes
+<img src="https://github.com/ppriyank/Pytorch-CustomDataset-FasterRCNN/blob/master/images/ratiologic.jpg" width="900">
 
 
 
