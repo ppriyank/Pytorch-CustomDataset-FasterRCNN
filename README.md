@@ -7,15 +7,6 @@ Faster R-CNN: Towards Real-Time Object Detection with Region Proposal Networks
 Shaoqing Ren, Kaiming He, Ross Girshick, Jian Sun
 ```
 
-
-### Todo :
-- [ ] requirement.txt 
-- [ ] Save temp file for data loading   
-- [ ] parallelize the code (calc_rpn function) ??  
-- [ ] How to run and what changes to make ?? 
-- [ ] Remove log from tw and th to check if performance changes??
-
-
 Tutorial / Credits / Source :  [source](https://towardsdatascience.com/faster-r-cnn-object-detection-implemented-by-keras-for-custom-data-from-googles-open-images-125f62b9141a)  ||  [Github](https://github.com/RockyXu66/Faster_RCNN_for_Open_Images_Dataset_Keras)
 
 
@@ -130,3 +121,10 @@ It returns 3 tensors : base_x , cls_k , reg_k.
 For every qualified anchor boxes from model_rpn (in calc_iou function),   
 * Model is tasked to predict the class inside that qualified anchor box. 
 * Model is tasked to predict the (tx, ty, tw, th), the values of deviation of the anchor box from the actual GT anchor box. 
+
+
+### Future Work :
+- [ ] requirement.txt 
+- [ ] Save temp file for data loading   
+- [ ] parallelize the code (calc_rpn function) ??  
+- [ ] Remove log from tw and th to check if performance changes??
