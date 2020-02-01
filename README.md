@@ -21,6 +21,11 @@ Tutorial / Credits / Source :  [source](https://towardsdatascience.com/faster-r-
 * `utiils.py` are basic functions IOU calculatins, saving models loading models etc.
 * `model.py` is the collections of 2 simple models (most important manipulation of Faster RCNN comes from `tools.py`). 
 
+Run someting like 
+```
+python main.py --pretrained  --data-format='bg_first' --save-evaluations --
+```
+
 ## Custom Dataset
 
 * Create 2 json files for each set (train, validation, test)  (I have only test and train set so 4 json files)    

@@ -3,7 +3,6 @@ import os
 import argparse
 import math 
 
-
 import torch.backends.cudnn as cudnn
 import torch
 import torch.nn as nn
@@ -238,6 +237,20 @@ else:
     optimizer_classifier = state['optimizer_classifier']
     
     start_epoch  = state['epoch']
+
+    # if pretrained optimizer was from CPU 
+    # https://github.com/pytorch/pytorch/issues/2830
+    if use_gpu:
+        for state in optimizer_model_rpn.state.values():
+            for k, v in state.items():
+                if isinstance(v, torch.Tensor):
+                    state[k] = v.cuda()
+
+        for state in optimizer_classifier.state.values():
+            for k, v in state.items():
+                if isinstance(v, torch.Tensor):
+                    state[k] = v.cuda()
+
 
 
 
