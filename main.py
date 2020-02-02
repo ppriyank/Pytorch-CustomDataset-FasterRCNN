@@ -447,7 +447,7 @@ def test(epoch):
         
         base_x , cls_k , reg_k = model_rpn(image)
 
-        for b in range(args.train_batch):
+        for b in range(image.size(0)):
             img_data = {}
             rpn_rois = rpn_to_roi(cls_k[b,:], reg_k[b,:], no_anchors=num_anchors,  all_possible_anchor_boxes=all_possible_anchor_boxes_tensor.clone() )
             rpn_rois.to(device=device)
@@ -519,7 +519,7 @@ for i in range(start_epoch + 1 , args.max_epochs):
         save_checkpoint(i, model_rpn, model_classifier, optimizer_model_rpn, optimizer_classifier , best_error, save_dir=args.save_dir)
 
     print("=== {} === ".format(total_loss))  
-    # break 
+    
 print('Training complete, exiting.')
 
 
