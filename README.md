@@ -130,6 +130,9 @@ For every qualified anchor boxes from model_rpn (in calc_iou function),
 * Model is tasked to predict the class inside that qualified anchor box. 
 * Model is tasked to predict the (tx, ty, tw, th), the values of deviation of the anchor box from the actual GT anchor box. 
 
+##### Entire Pipeline
+<img src="https://github.com/ppriyank/Pytorch-CustomDataset-FasterRCNN/blob/master/images/fasterRCNN_pipeline.jpg" width="900">
+
 
 ### Future Work :
 - [ ] requirement.txt 
