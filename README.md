@@ -47,7 +47,7 @@ Each dictinoary contains keys :
 In case of error, raise an issue :) 
 
 
-### Perfroamnce :  
+### Performance :  
 Sample training image, after training the model for 10 epcohs for a dataset of 17 images with imbalanced bounding boxes
 <img src="https://github.com/ppriyank/Pytorch-CustomDataset-FasterRCNN/blob/master/images/performance.jpg" width="900">
 
