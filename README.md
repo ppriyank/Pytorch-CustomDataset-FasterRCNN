@@ -9,7 +9,7 @@ Shaoqing Ren, Kaiming He, Ross Girshick, Jian Sun
 
 Tutorial / Credits / Source :  [source](https://towardsdatascience.com/faster-r-cnn-object-detection-implemented-by-keras-for-custom-data-from-googles-open-images-125f62b9141a)  ||  [Github](https://github.com/RockyXu66/Faster_RCNN_for_Open_Images_Dataset_Keras)
 
-In case of any cconfusion, please raise a query. 
+In case of any confusion, please raise a query. 
 
 ## Github GUIDE
 
