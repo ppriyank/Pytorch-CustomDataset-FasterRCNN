@@ -26,7 +26,7 @@ class Config(object):
     """docstring for config"""
     def __init__(self):
         super(Config, self).__init__()
-        self.voc_labels = ('laptop', 'person', 'lights', 'drinks' , 'projector')
+        self.voc_labels = ('schizont', 'gametocyte', 'trophozoite', 'red blood cell', 'difficult', 'ring', 'leukocyte')
         self.voc_labels += ('bg',)
         self.label_map = {k: v for v, k in enumerate(self.voc_labels)}
         self.rev_label_map = {v: k for k, v in self.label_map.items()}  # Inverse mapping
@@ -170,7 +170,6 @@ num_anchors = len(anchor_ratios) * len(anchor_sizes)
 valid_anchors = valid_anchors(anchor_sizes,anchor_ratios , downscale , output_width=out_w , resized_width=width , output_height=out_h , resized_height=height)
 rpm = RPM(anchor_sizes , anchor_ratios, valid_anchors, config.rev_label_map, rpn_max_overlap=args.rpn_max_overlap , rpn_min_overlap= args.rpn_min_overlap , num_regions = args.thresold_num_region )
 
-
 dataset_train =  Dataset(data_folder=args.dataset, rpm=rpm, split='TRAIN', std_scaling=args.std_scaling, image_resize_size= (height, width),  debug= False , data_format= args.data_format)
 dataset_test =  Dataset(data_folder=args.dataset, rpm=rpm, split='TEST', std_scaling=args.std_scaling, image_resize_size= (height, width),  debug= False , data_format= args.data_format )
 
@@ -257,8 +256,7 @@ else:
 scheduler_rpn = WarmupMultiStepLR(optimizer_model_rpn, milestones=[40, 70], gamma=args.gamma, warmup_factor=0.01, warmup_iters=10)
 scheduler_class = WarmupMultiStepLR(optimizer_classifier, milestones=[40, 70], gamma=args.gamma, warmup_factor=0.01, warmup_iters=10)
 
-
-all_possible_anchor_boxes = default_anchors(out_h=50, out_w=38, anchor_sizes=anchor_sizes , anchor_ratios=anchor_ratios , downscale=16)
+all_possible_anchor_boxes = default_anchors(out_h=out_h, out_w=out_w, anchor_sizes=anchor_sizes , anchor_ratios=anchor_ratios , downscale=16)
 all_possible_anchor_boxes_tensor = torch.tensor(all_possible_anchor_boxes).to(device=device)
 
 
