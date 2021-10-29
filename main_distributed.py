@@ -279,7 +279,7 @@ all_possible_anchor_boxes_tensor = torch.tensor(all_possible_anchor_boxes).to(de
 
 
 def train(epoch):
-    print("Training epoch {}".format(epoch))
+    print("\n\nTraining epoch {}\n\n".format(epoch))
     rpn_accuracy_rpn_monitor = []
     rpn_accuracy_for_epoch = []
     
@@ -473,14 +473,15 @@ def test(epoch):
     total_count = 0
 
     for i,(image, boxes, labels , temp, num_pos) in enumerate(test_loader):
+
         count_rpn +=1
         
-        y_is_box_label = temp[0].to(device=device)
-        y_rpn_regr = temp[1].to(device=device)
-        image = Variable(image).to(device=device)
+        y_is_box_label = temp[0].to(device=model_rpn_cuda)
+        y_rpn_regr = temp[1].to(device=model_rpn_cuda)
+        image = Variable(image).to(device=model_rpn_cuda)
 
         base_x , cls_k , reg_k = model_rpn(image)
-        l1 = rpn_loss_regr(y_true=y_rpn_regr, y_pred=reg_k , y_is_box_label=y_is_box_label , lambda_rpn_regr=args.lambda_rpn_regr, device=device)
+        l1 = rpn_loss_regr(y_true=y_rpn_regr, y_pred=reg_k , y_is_box_label=y_is_box_label , lambda_rpn_regr=args.lambda_rpn_regr, device=model_rpn_cuda)
         l2 = rpn_loss_cls_fixed_num(y_pred = cls_k , y_is_box_label= y_is_box_label , lambda_rpn_class = args.lambda_rpn_class)
         
         regr_rpn_loss += l1.item() 
@@ -492,22 +493,22 @@ def test(epoch):
 
         for b in range(image.size(0)):
             img_data = {}
-            rpn_rois = rpn_to_roi(cls_k[b,:], reg_k[b,:], no_anchors=num_anchors,  all_possible_anchor_boxes=all_possible_anchor_boxes_tensor.clone() )
-            rpn_rois.to(device=device)
+            rpn_rois = rpn_to_roi(cls_k[b,:].cpu(), reg_k[b,:].cpu(), no_anchors=num_anchors,  all_possible_anchor_boxes=all_possible_anchor_boxes_tensor.cpu().clone() )
+            rpn_rois.to(device=model_classifier_cuda)
 
-            img_data["boxes"] = boxes[b].to(device=device) // downscale
+            img_data["boxes"] = boxes[b].to(device=model_classifier_cuda) // downscale
             img_data['labels'] = labels[b]
 
             X2, Y1, Y2, _ = calc_iou(rpn_rois, img_data, class_mapping=config.label_map )
             
-            X2 = X2.to(device=device)
-            Y1 = Y1.to(device=device)
-            Y2 = Y2.to(device=device)
-
             if X2 is None:
                 rpn_accuracy_rpn_monitor.append(0)
                 rpn_accuracy_for_epoch.append(0)
                 continue
+
+            X2 = X2.to(device=model_classifier_cuda)
+            Y1 = Y1.to(device=model_classifier_cuda)
+            Y2 = Y2.to(device=model_classifier_cuda)
 
             count_class += 1 
             rpn_base = base_x[b].unsqueeze(0)
@@ -522,13 +523,14 @@ def test(epoch):
 
             if args.save_evaluations :
                 total_count += 1
-                predicted_boxes = X2
-                predicted_boxes[:,2]  = predicted_boxes[:,2]  + predicted_boxes[:,0]
-                predicted_boxes[:,3]  = predicted_boxes[:,3]  + predicted_boxes[:,1]
-                predicted_boxes = predicted_boxes * downscale
-                
-                temp_img = (denormalize['std'] * image[b]) + denormalize['mean']  
-                save_evaluations_image(image=temp_img, boxes=predicted_boxes, labels=Y1, count=total_count, config=config , save_dir=args.save_dir)
+                if total_count % 100 == 0 :
+                    predicted_boxes = X2
+                    predicted_boxes[:,2]  = predicted_boxes[:,2]  + predicted_boxes[:,0]
+                    predicted_boxes[:,3]  = predicted_boxes[:,3]  + predicted_boxes[:,1]
+                    predicted_boxes = predicted_boxes * downscale
+                    
+                    temp_img = (denormalize['std'].cpu() * image[b].cpu()) + denormalize['mean'].cpu()  
+                    save_evaluations_image(image=temp_img, boxes=predicted_boxes, labels=Y1, count=total_count, config=config , save_dir=args.save_dir)
     
     if count_class == 0 :
         count_class = 1
@@ -547,7 +549,9 @@ def test(epoch):
     return total_class_loss/ count_class + total_rpn_loss/ count_rpn
 
 
-
+model_rpn.eval()
+model_classifier.eval()  
+total_loss = test(0)
 print(os.environ['CUDA_VISIBLE_DEVICES'])
 for i in range(start_epoch + 1 , args.max_epochs):
     model_rpn.train()

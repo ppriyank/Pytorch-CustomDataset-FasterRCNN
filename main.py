@@ -455,14 +455,14 @@ def test(epoch):
 
             X2, Y1, Y2, _ = calc_iou(rpn_rois, img_data, class_mapping=config.label_map )
             
-            X2 = X2.to(device=device)
-            Y1 = Y1.to(device=device)
-            Y2 = Y2.to(device=device)
-
             if X2 is None:
                 rpn_accuracy_rpn_monitor.append(0)
                 rpn_accuracy_for_epoch.append(0)
                 continue
+
+            X2 = X2.to(device=device)
+            Y1 = Y1.to(device=device)
+            Y2 = Y2.to(device=device)
 
             count_class += 1 
             rpn_base = base_x[b].unsqueeze(0)

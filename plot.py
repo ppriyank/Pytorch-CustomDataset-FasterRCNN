@@ -55,7 +55,6 @@ def save_evaluations_image(image, boxes, labels, count, config , save_dir):
     if not os.path.isdir(save_dir):
         os.makedirs(save_dir)
     
-
     trans = transforms.ToPILImage()
     image = trans(image.cpu())
     image.save(save_dir + str(count) + ".jpg") 
