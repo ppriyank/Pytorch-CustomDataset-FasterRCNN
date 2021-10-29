@@ -98,6 +98,7 @@ class Classifier(nn.Module):
             # outputs.append(resized_image.unsqueeze(0))
 
         out_roi_pool = torch.cat(outputs,0)
+        # print(out_roi_pool.shape, rois.shape)
         # out_roi_pool = torch.cat(outputs,1)
         # out_roi_pool = out_roi_pool.view(rois.size(0), self.feat_dim, self.pooling_regions, self.pooling_regions )
         # out_roi_pool = out_roi_pool.view(self.num_rois, self.feat_dim, self.pooling_regions, self.pooling_regions )

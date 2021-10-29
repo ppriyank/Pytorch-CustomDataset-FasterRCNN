@@ -341,21 +341,23 @@ def rpn_to_roi(cls_k, reg_k, no_anchors,  use_regr=True, max_boxes=300, overlap_
         result: boxes from non-max-suppression (shape=(max_boxes, 4))
             boxes: coordinates for bboxes (on the feature map)
     """
+
     reg_k = reg_k / std_scaling
+    # reg_k : torch.Size([13, 10, 9])
     h,w = all_possible_anchor_boxes.size(1), all_possible_anchor_boxes.size(2)
     # all_possible_anchor_boxes : torch.Size([4, 50, 38, 9])
     for k in range(no_anchors): #current anchor box     
             # the Kth anchor of all position in the feature map (9th in total)
             regr = reg_k[ :, :, 4 * k:4 * k + 4] # shape => (h , w, 4)
             regr = regr.permute(2,0,1) # shape => (4, h , w)
-                        
+            # regr.shape , all_possible_anchor_boxes.shape
+            # torch.Size([13, 10, 36]) , torch.Size([4, 13, 10, 9])
             if use_regr:
                 all_possible_anchor_boxes[ :, :, :, k] = apply_regr_np(all_possible_anchor_boxes[ :, :, :, k], regr)
 
             # Avoid width and height exceeding 1
             # all_possible_anchor_boxes[2, :, :, k] = all_possible_anchor_boxes[2, :, :, k].clamp(max=h) 
             # all_possible_anchor_boxes[3, :, :, k] = all_possible_anchor_boxes[3, :, :, k].clamp(max=w) 
-
             # Convert (x, y , w, h) to (x1, y1, x2 (x1 + w ), y2 (y1 + h))
             all_possible_anchor_boxes[2, :, :, k] += all_possible_anchor_boxes[0, :, :, k]
             all_possible_anchor_boxes[3, :, :, k] += all_possible_anchor_boxes[1, :, :, k]
@@ -371,7 +373,7 @@ def rpn_to_roi(cls_k, reg_k, no_anchors,  use_regr=True, max_boxes=300, overlap_
             all_possible_anchor_boxes[2, :, :, k] = all_possible_anchor_boxes[2, :, :, k].clamp(min=0)
             all_possible_anchor_boxes[3, :, :, k] = all_possible_anchor_boxes[3, :, :, k].clamp(min=0)
 
-
+            
     all_boxes = all_possible_anchor_boxes.permute(0,3,1,2).reshape(4,-1).permute(1,0)
     all_probs = cls_k.permute(2,0,1).reshape(-1)
 
@@ -393,6 +395,7 @@ def calc_iou(rpn_rois, img_data, class_mapping , classifier_min_overlap=0.1 , cl
     Args:
         R: bboxes, probs
     """
+    
     boxes = img_data['boxes'].int()
     class_names = img_data['labels']
     # GT boxes and labels 
@@ -410,7 +413,7 @@ def calc_iou(rpn_rois, img_data, class_mapping , classifier_min_overlap=0.1 , cl
         best_iou = 0.0
         best_box = -1
         
-        best_iou , best_bbox = iou_tensor(x1, y1, x2, y2, boxes)
+        best_iou , best_bbox = iou_tensor(x1.cpu(), y1.cpu(), x2.cpu(), y2.cpu(), boxes.cpu())
         if type(best_bbox) == int or best_iou < classifier_min_overlap :
             continue 
         else:
@@ -464,7 +467,6 @@ def calc_iou(rpn_rois, img_data, class_mapping , classifier_min_overlap=0.1 , cl
         # print(len(labels))
         # import pdb
         # pdb.set_trace()
-
 
     if len(x_roi) == 0:
         return None, None, None, None
